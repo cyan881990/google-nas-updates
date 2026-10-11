@@ -2,6 +2,9 @@
 $ErrorActionPreference='Stop'
 . (Join-Path (Split-Path -Parent $PSScriptRoot) 'scripts\nas-admin.ps1') -LibraryOnly
 $fixture=Join-Path $env:TEMP ('GoogleNas-admin-tests-'+[Guid]::NewGuid().ToString('N')); New-Item -ItemType Directory -Path $fixture -Force | Out-Null
+# .NET Framework expands existing 8.3 TEMP paths on hosted Windows runners.
+# Match the path normalization used by Assert-NasFolder and the SMB service.
+$fixture=[IO.Path]::GetFullPath($fixture)
 $originalAcl=(Get-Acl -LiteralPath $fixture).Sddl
 $script:shares=@{}; $script:rules=@{}; $script:account=$null; $script:open=$false; $script:openDirectory=$false; $script:failFirewall=$false; $script:lastShare=$null; $script:lastRule=$null
 Set-Content -LiteralPath (Join-Path $fixture 'open.txt') -Value 'fixture'
@@ -51,3 +54,4 @@ try {
     Reject {Invoke-NasOperation $data} 'Unrelated share removed';Check ($script:shares.Count -eq 1) 'Ownership guard failed'
     Write-Output 'NAS admin workflow: share permissions/encryption, Tailscale-only firewall, account/ACL rollback, open-file and ownership guards passed (network/account cmdlets mocked; fixture ACL real).'
 } finally { $restore=Get-Acl -LiteralPath $fixture;$restore.SetSecurityDescriptorSddlForm($originalAcl);Set-Acl -LiteralPath $fixture -AclObject $restore }
+
