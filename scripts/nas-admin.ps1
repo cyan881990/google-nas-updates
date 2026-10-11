@@ -1,4 +1,4 @@
-param([string]$Request, [switch]$LibraryOnly)
+﻿param([string]$Request, [switch]$LibraryOnly)
 $ErrorActionPreference = 'Stop'
 function Assert-NasShareName([string]$Name) {
     if ($Name -notmatch '^[A-Za-z][A-Za-z0-9_-]{0,47}$') { throw 'Invalid NAS share name.' }

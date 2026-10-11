@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][string]$BuildDir)
+﻿param([Parameter(Mandatory=$true)][string]$BuildDir)
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $compiler = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'

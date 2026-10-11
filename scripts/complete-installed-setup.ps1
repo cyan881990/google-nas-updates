@@ -1,4 +1,4 @@
-# Run with Windows PowerShell 5.1: the installer targets .NET Framework.
+﻿# Run with Windows PowerShell 5.1: the installer targets .NET Framework.
 param([Parameter(Mandatory=$true)][string]$SetupExe)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Windows.Forms

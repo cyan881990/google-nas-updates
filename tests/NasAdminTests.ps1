@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][string]$BuildDir)
+﻿param([Parameter(Mandatory=$true)][string]$BuildDir)
 $ErrorActionPreference='Stop'
 . (Join-Path (Split-Path -Parent $PSScriptRoot) 'scripts\nas-admin.ps1') -LibraryOnly
 $fixture=Join-Path $env:TEMP ('GoogleNas-admin-tests-'+[Guid]::NewGuid().ToString('N')); New-Item -ItemType Directory -Path $fixture -Force | Out-Null

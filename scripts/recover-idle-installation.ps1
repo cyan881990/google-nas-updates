@@ -1,4 +1,4 @@
-param(
+﻿param(
     [Parameter(Mandatory=$true)][int]$AppProcessId,
     [Parameter(Mandatory=$true)][int]$MountProcessId,
     [Parameter(Mandatory=$true)][string]$SetupExe

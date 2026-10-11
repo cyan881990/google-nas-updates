@@ -1,17 +1,24 @@
 name: Build and release Windows application
 on:
   push:
-    branches: [main, master]
     tags: ['v*']
   pull_request:
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: cyan-nas-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 jobs:
   build:
     runs-on: windows-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: build/dependencies
+          key: windows-offline-${{ hashFiles('scripts/prepare-dependencies.ps1') }}
       - name: Build and test
         shell: powershell
         run: ./scripts/build.ps1 -Test -OfflineInstaller
@@ -50,3 +57,4 @@ jobs:
           TAG="v$VERSION"
           if [[ "$RELEASE_TAG" == v* && "$RELEASE_TAG" != "$TAG" ]]; then exit 1; fi
           gh release create "$TAG" artifacts/dist/GoogleNas.exe artifacts/dist/GoogleNas.exe.sha256 artifacts/dist/GoogleNasSetup.exe artifacts/dist/GoogleNasSetup.exe.sha256 artifacts/dist/CyanNasSetup.exe artifacts/dist/CyanNasSetup.exe.sha256 --target "$GITHUB_SHA" --title "CYAN NAS $VERSION" --generate-notes
+

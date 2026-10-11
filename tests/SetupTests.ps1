@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][string]$SetupExe, [Parameter(Mandatory=$true)][string]$BuildDir)
+﻿param([Parameter(Mandatory=$true)][string]$SetupExe, [Parameter(Mandatory=$true)][string]$BuildDir)
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $testDir = Join-Path $BuildDir ('setup-tests-' + [Guid]::NewGuid().ToString('N'))

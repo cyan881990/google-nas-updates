@@ -1,4 +1,4 @@
-param(
+﻿param(
     [Parameter(Mandatory=$true)][int]$SetupProcessId,
     [Parameter(Mandatory=$true)][int]$InstallerProcessId,
     [Parameter(Mandatory=$true)][string]$ExpectedSetup,

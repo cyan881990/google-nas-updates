@@ -1,4 +1,5 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $dependencyDir = Join-Path $projectRoot 'build\dependencies'
@@ -22,3 +23,4 @@ if (Test-Path -LiteralPath $rcloneExe) { Remove-Item -LiteralPath $rcloneExe }
 $zip = [IO.Compression.ZipFile]::OpenRead((Join-Path $dependencyDir 'rclone.zip'))
 try { [IO.Compression.ZipFileExtensions]::ExtractToFile($zip.GetEntry('rclone-v1.75.2-windows-amd64/rclone.exe'), $rcloneExe) } finally { $zip.Dispose() }
 Write-Output 'Offline dependencies verified: rclone 1.75.2, WinFsp 2.1, .NET Framework 4.8.'
+

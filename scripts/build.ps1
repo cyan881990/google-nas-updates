@@ -1,4 +1,4 @@
-param([switch]$Test, [switch]$OfflineInstaller)
+﻿param([switch]$Test, [switch]$OfflineInstaller)
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $compiler = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'

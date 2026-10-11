@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][string]$ApplicationExe,[Parameter(Mandatory=$true)][string]$ResultFile)
+﻿param([Parameter(Mandatory=$true)][string]$ApplicationExe,[Parameter(Mandatory=$true)][string]$ResultFile)
 $ErrorActionPreference='Stop'
 try {
     [Reflection.Assembly]::LoadFile((Resolve-Path -LiteralPath $ApplicationExe).Path) | Out-Null

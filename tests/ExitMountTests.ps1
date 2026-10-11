@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][string]$AppExe,[Parameter(Mandatory=$true)][string]$RcloneExe)
+﻿param([Parameter(Mandatory=$true)][string]$AppExe,[Parameter(Mandatory=$true)][string]$RcloneExe)
 $ErrorActionPreference='Stop'
 Add-Type -AssemblyName System.Windows.Forms
 [Reflection.Assembly]::LoadFile((Resolve-Path -LiteralPath $AppExe).Path) | Out-Null

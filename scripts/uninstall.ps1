@@ -1,4 +1,4 @@
-param([int]$WaitProcessId = 0)
+﻿param([int]$WaitProcessId = 0)
 $ErrorActionPreference = 'Stop'
 if ($WaitProcessId -gt 0) {
     $uninstaller = Get-Process -Id $WaitProcessId -ErrorAction SilentlyContinue

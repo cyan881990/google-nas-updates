@@ -1,4 +1,4 @@
-param([switch]$Test, [string]$OutputName = 'GoogleNasSetup.exe')
+﻿param([switch]$Test, [string]$OutputName = 'GoogleNasSetup.exe')
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $buildDir = Join-Path $projectRoot 'build'

@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 $installRoot = Join-Path $env:LOCALAPPDATA 'Programs\GoogleNas'
 $sourceExe = Join-Path $PSScriptRoot 'GoogleNas.exe'
 $checksumFile = Join-Path $PSScriptRoot 'GoogleNas.exe.sha256'
