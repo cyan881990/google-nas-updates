@@ -1,0 +1,52 @@
+name: Build and release Windows application
+on:
+  push:
+    branches: [main, master]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and test
+        shell: powershell
+        run: ./scripts/build.ps1 -Test -OfflineInstaller
+      - name: Verify release tag matches source version
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: powershell
+        run: |
+          $source = Get-Content src/Core.cs -Raw
+          $version = [regex]::Match($source, 'const string Version = "(\d+\.\d+\.\d+)"').Groups[1].Value
+          if ($env:GITHUB_REF_NAME -ne "v$version") { throw 'Tag does not match Core.Version.' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GoogleNas-windows-x64
+          path: |
+            dist/*
+            build/*.zip
+  release:
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: GoogleNas-windows-x64
+          path: artifacts
+      - name: Publish stable release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          VERSION=$(sed -n 's/.*const string Version = "\([0-9.]*\)";.*/\1/p' src/Core.cs)
+          TAG="v$VERSION"
+          if [[ "$RELEASE_TAG" == v* && "$RELEASE_TAG" != "$TAG" ]]; then exit 1; fi
+          gh release create "$TAG" artifacts/dist/GoogleNas.exe artifacts/dist/GoogleNas.exe.sha256 artifacts/dist/GoogleNasSetup.exe artifacts/dist/GoogleNasSetup.exe.sha256 artifacts/dist/CyanNasSetup.exe artifacts/dist/CyanNasSetup.exe.sha256 --target "$GITHUB_SHA" --title "CYAN NAS $VERSION" --generate-notes

@@ -1,0 +1,9 @@
+build/
+dist/
+*.conf
+*.log
+settings.json
+*.zip
+*.user
+.env
+tools/

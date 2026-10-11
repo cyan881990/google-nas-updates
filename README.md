@@ -1,19 +1,98 @@
-# Google NAS — Windows x64
+# CYAN NAS cho Windows — v1.2.6
 
-Bộ cài và nguồn cập nhật chính thức cho Google NAS.
+v1.2.6 đổi tên phần mềm, bộ cài, khay hệ thống và shortcut thành CYAN NAS. Giữ định danh dữ liệu và tài sản cập nhật cũ để nâng cấp từ Google NAS mà không mất cấu hình.
 
-[Tải bộ cài mới nhất](https://github.com/cyan881990/google-nas-updates/releases/latest/download/GoogleNasSetup.exe)
+v1.2.5 sửa dừng NAS SMB bị chặn do handle thư mục Explorer; chỉ chặn file thật và hiển thị máy/tài khoản đang giữ file. Bản này cũng sửa cài đè bị lỗi thay tệp: dùng bản sao lưu riêng mỗi lần cài, bỏ qua tệp không đổi và báo rõ đường dẫn bị khóa. Bản này cũng sửa lỗi Thoát an toàn bị chặn khi ổ đang rảnh: không dùng số tham chiếu VFS để suy ra file đang mở, đồng thời kiểm tra metadata chưa upload và file cache đang bị giữ. Bản này ẩn ô nhập repository khỏi giao diện Cập nhật. Nguồn cập nhật được gắn trong `Core.UpdateRepository` khi đóng gói. Nguồn cập nhật chính thức: `cyan881990/google-nas-updates`. Bản cũ có ô repository nhập giá trị này để cập nhật.
 
-## Cập nhật từ phiên bản cũ
+v1.2.0 bổ sung **NAS từ xa**: chia sẻ thư mục/ổ cứng NTFS/ReFS trên máy này và gắn NAS từ máy khác qua Tailscale. Cài trên cả hai máy; không cần mở port trên router. Tool tự tải MSI Tailscale 1.104.1 từ nguồn chính thức khi bấm **Cài Tailscale**, kiểm tra SHA256 và chữ ký Tailscale Inc. Bộ cài Google Drive vẫn chứa các thành phần offline; Tailscale cần Internet trong lần cài đầu và không được đóng gói lại vào EXE.
 
-Nhập `cyan881990/google-nas-updates` vào ô repository trong trang Cập nhật, lưu cấu hình và bấm kiểm tra cập nhật. Từ bản 1.2.2, nguồn này đã được gắn sẵn và ẩn trong giao diện.
+## NAS ổ cứng qua Internet
 
-## Các tệp phát hành
+1. Trên cả hai máy: mở **NAS từ xa → Cài Tailscale → Đăng nhập**. Đăng nhập vào cùng mạng Tailscale. Mật khẩu tài khoản Google/Tailscale chỉ nhập trong trình duyệt.
+2. Máy chứa ổ: chọn thư mục hoặc ổ dữ liệu, đặt tên NAS và tài khoản local Windows. Mặc định tạo tài khoản NAS riêng; nhập mật khẩu ≥12 ký tự gồm chữ hoa, thường, số và ký hiệu. Nếu dùng tài khoản local đã tồn tại, bỏ chọn tạo tài khoản; tool không đổi mật khẩu của tài khoản đó. Chọn chỉ đọc nếu cần, bấm **Tạo NAS** và chấp nhận UAC dưới cùng tài khoản Windows quản trị đang chạy tool.
+3. Tool hiển thị `\\100.x.x.x\TenNAS` và `TEN-MAY\taikhoan`. Trên máy từ xa: nhập IP/tên NAS, chọn ký tự ổ trống → **Gắn ổ NAS**. Nhập tài khoản/mật khẩu NAS trong hộp thoại Windows; mã PIN Windows không thay thế mật khẩu. Kết nối ổ được ghi vào profile Windows để thử kết nối lại sau khi đăng nhập.
+4. Máy chứa ổ phải bật và không ngủ. Chia sẻ SMB tồn tại độc lập với GUI. Bấm **Chạy khi đăng xuất** để bật Tailscale unattended nếu muốn truy cập sau khi người dùng đăng xuất. Không tự thay thiết lập ngủ/điện hoặc chính sách key expiry của Tailscale.
+5. **Dừng chia sẻ** chỉ xóa chia sẻ do tool tạo cho tài khoản này và rule firewall tương ứng; từ chối khi còn file mở. Tài khoản local và quyền NTFS đã cấp được giữ. **Ngắt ổ NAS** không ép đóng file và không ngắt ổ trỏ tới share khác.
 
-- `GoogleNasSetup.exe`: bộ cài Windows x64 tích hợp rclone, WinFsp và .NET Framework 4.8 offline.
-- `GoogleNas.exe` và `GoogleNas.exe.sha256`: các tệp cho updater ứng dụng.
-- `GoogleNasSetup.exe.sha256`: mã SHA256 của bộ cài.
+SMB share bật mã hóa SMB3, quyền share chỉ cấp cho tài khoản được chọn. Rule TCP 445 do tool tạo giới hạn IP/interface Tailscale và dải 100.64.0.0/10. Rule chia sẻ khác đã tồn tại của Windows không bị thay đổi; quyền NTFS/share và chính sách tailnet vẫn quyết định truy cập. Không hỗ trợ FAT/exFAT, junction/symlink/cloud placeholder hoặc chia sẻ toàn bộ ổ hệ thống C:. Tài khoản dùng Tailscale phải được bạn đăng nhập; không lưu auth key trong tool.
 
-Google NAS gắn Google Drive thành ổ đĩa Explorer và hỗ trợ chia sẻ thư mục ổ cứng qua Tailscale cùng SMB mã hóa. Tailscale được tải từ nhà cung cấp khi bật tính năng NAS từ xa.
+Mật khẩu tạo NAS chỉ chuyển cho helper bằng Windows DPAPI trong thư mục dữ liệu có ACL riêng, không ghi plaintext vào config, log hay command line. Nếu tạo NAS thất bại, tool hoàn tác share/rule/account mới và ACL thư mục. Gỡ GUI không tự xóa tài khoản hay share NAS đang dùng: dừng chia sẻ trong app trước khi gỡ nếu muốn tắt NAS.
 
-Cập nhật ứng dụng giữ runtime hiện có; dùng bộ cài đầy đủ nếu cần nâng runtime hoặc driver. Thoát an toàn trước khi chạy bộ cài. Dữ liệu tài khoản, cấu hình và cache được giữ nguyên.
+Nguồn tích hợp: [Tailscale CLI](https://tailscale.com/docs/reference/tailscale-cli), [MSI chính thức](https://tailscale.com/docs/install/windows/msi), [Windows SMB](https://learn.microsoft.com/powershell/module/smbshare/).
+
+Kiểm thử NAS gồm validate địa chỉ/tên, parse trạng thái đăng nhập, config không chứa mật khẩu, DPAPI, workflow admin với mock cmdlet mạng/tài khoản và ACL thật trong thư mục fixture. Chưa xác nhận truyền file giữa hai máy ở hai mạng Internet khác nhau; cần hai máy đã đăng nhập Tailscale để kiểm tra thực tế.
+
+v1.1.3 bổ sung mốc DPI 96 cho giao diện ứng dụng/bộ cài, icon nhiều kích thước trong file EXE ứng dụng, setup và uninstaller. Đóng cửa sổ thu nhỏ ứng dụng trên taskbar; mở shortcut khi ứng dụng đã chạy sẽ mở lại cửa sổ. Nhấp icon khay hệ thống để mở, hoặc chọn Thông tin → Thoát an toàn để đóng ứng dụng.
+
+v1.1.2 sửa lỗi Windows Script Host đổi tên shortcut “Gỡ CYAN NAS” thành “G? CYAN NAS”. Shortcut gỡ cài đặt dùng tên ASCII “Uninstall CYAN NAS”; đăng ký gỡ cài đặt và khởi chạy cùng Windows trước khi tạo shortcut. Nếu Start Menu không cho ghi, bộ cài hoàn tất và ghi cảnh báo tại `%LOCALAPPDATA%\GoogleNasSetup\logs\shortcuts.log`.
+
+v1.1.1 sửa lỗi đứng ở bước WinFsp do truyền tham số msiexec trong ngoặc kép. Bộ cài hiển thị số giây chờ, giới hạn chờ WinFsp ở 3 phút và .NET ở 20 phút. Nếu quá hạn, giữ file tạm và không ép dừng tiến trình đang cài để tránh làm hỏng driver; kiểm tra nhật ký tại `%LOCALAPPDATA%\GoogleNasSetup\logs` trước khi thử lại.
+
+Gắn Google Drive và NAS từ xa thành ổ đĩa trong Explorer. Giao diện tiếng Việt có Tổng quan, Cấu hình ổ đĩa, NAS từ xa, Cập nhật và Thông tin. Ứng dụng hỗ trợ tự gắn Google Drive sau khi đăng nhập Windows và cập nhật từ GitHub Releases.
+
+## Cài đặt với một file
+
+Chạy **CyanNasSetup.exe** trong thư mục `dist`, bấm **Cài đặt**. Không cần giải nén, tải rclone, tải WinFsp hay chạy setup thư viện riêng. File này chứa sẵn:
+
+- rclone 1.75.2 x64, dùng trực tiếp từ thư mục `runtime` của ứng dụng.
+- Bộ cài WinFsp 2.1.25156 chính thức, được cài tự động nếu chưa có driver.
+- Bộ cài .NET Framework 4.8 offline, chỉ chạy nếu Windows chưa có 4.8 trở lên.
+- Giấy phép rclone/WinFsp và mã nguồn WinFsp v2.1.
+
+Bộ cài hoạt động offline. Đăng nhập Google, truy cập Drive và kiểm tra bản cập nhật cần Internet. Windows có thể hiển thị UAC để bạn cấp quyền cài driver/runtime. Nếu Windows yêu cầu khởi động lại, bộ cài thông báo và không tự ép reboot. Yêu cầu Windows 10/11 x64; không hỗ trợ ARM64 hoặc Windows 32-bit.
+
+Ứng dụng cài cho tài khoản Windows đang chạy bộ cài tại `%LOCALAPPDATA%\Programs\GoogleNas`, có shortcut Start Menu và mục gỡ trong Windows Settings. Chỉ các thành phần hệ thống mới được nâng quyền, nên việc nhập tài khoản quản trị khác trong UAC không đổi tài khoản nhận ứng dụng. Không dùng “Run as different user” để mở chính bộ cài nếu muốn cài cho tài khoản hiện tại.
+
+Nếu bản cũ đang chạy: bấm **^** gần đồng hồ → nhấp phải biểu tượng **CYAN NAS** → **Thoát an toàn**, rồi bấm Cài đặt lại. Từ v1.1.3 cũng có thể chọn **Thông tin → Thoát an toàn**. Bấm X chỉ thu nhỏ, chưa thoát. Bộ cài không cưỡng chế ngắt upload. Tài khoản, cấu hình và cache hiện có được giữ nguyên.
+
+## Kết nối Google Drive
+
+1. Mở CYAN NAS → **Kết nối Google**, đăng nhập trong trình duyệt và cấp quyền. Mặc định dùng My Drive và quyền đọc/ghi. Cửa sổ xác thực rclone có thể xuất hiện trong lần kết nối đầu tiên.
+2. Trong **Cấu hình ổ đĩa**, chọn ký tự còn trống; để trống thư mục để dùng toàn bộ Drive, hoặc nhập `Documents/Projects` để chỉ gắn một thư mục. Chọn giới hạn cache và lưu.
+3. Ở **Tổng quan**, bấm **Gắn ổ đĩa** → **Mở trong Explorer**.
+4. Startup được bật mặc định khi cài (có thể bỏ chọn). Tùy chọn **Tự gắn ổ** chỉ thực hiện sau khi đã kết nối Google. Ứng dụng chạy sau khi người dùng đăng nhập Windows, không chạy trước màn hình đăng nhập.
+
+Đóng cửa sổ để tiếp tục chạy ở tray. Chọn **Thoát an toàn** từ tray để ngắt ổ rồi thoát. Nếu còn file mở, hàng đợi upload hoặc lỗi upload, ứng dụng yêu cầu xử lý trước khi ngắt. Xem trạng thái upload/cache ở Tổng quan và nhật ký trong Thông tin.
+
+## Cập nhật và GitHub
+
+Trong **Cập nhật**, bấm kiểm tra hoặc bật tự cập nhật (mỗi 6 giờ). Nguồn được gắn sẵn trong bộ cài, không hiển thị link hay ô nhập repository. Updater lấy bản ổn định mới nhất từ GitHub Releases public; repository private chưa được hỗ trợ. Nếu bản cài chưa có nguồn cập nhật, ứng dụng thông báo rõ khi bấm kiểm tra.
+
+Release cần có `GoogleNas.exe` và `GoogleNas.exe.sha256`. Updater kiểm tra nguồn URL, SHA256 và version trong EXE; chờ ổ an toàn, thay file atomic, giữ `.previous`, chạy health check và khởi động lại. Nếu health check thất bại, khôi phục bản cũ. Cập nhật ứng dụng giữ runtime rclone hiện có; để nâng runtime/driver, dùng bộ cài đầy đủ mới. SHA256 kiểm tra toàn vẹn, không thay thế chữ ký nhà phát hành. EXE của dự án hiện chưa ký Authenticode; MSI WinFsp và bộ cài .NET nguyên bản có chữ ký nhà cung cấp.
+
+Workflow `.github/workflows/release.yml` build/test trên Windows. Push tag `vX.Y.Z` khớp `Core.Version` để xuất EXE ứng dụng và EXE setup cùng SHA256 lên Release. Thư mục này chưa có remote GitHub; cần URL repository trước khi đồng bộ mã nguồn.
+
+## Build từ mã nguồn
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build.ps1 -Test -OfflineInstaller
+```
+
+Compiler .NET Framework có sẵn trong Windows; không cần NuGet hay .NET SDK. Lần build đầu cần mạng để chuẩn bị các gói được pin version và đối chiếu SHA256. Đây là tải ở máy phát triển, không phải tải khi người dùng cài. Dependency cache nằm trong `build\dependencies`. Đầu ra chính: `dist\GoogleNasSetup.exe`; ứng dụng và runtime để thử trực tiếp nằm ở `dist`.
+
+Sửa version trong `src/Core.cs`, build/test, commit/push và push tag tương ứng. Không đưa token, cache hoặc rclone.conf lên GitHub; `.gitignore` đã loại dữ liệu này.
+
+Kiểm thử bao gồm logic cấu hình/quoting/version/ngắt ổ, health check, update/rollback/checksum, giải nén toàn bộ payload offline, đối chiếu dependency và thay file/rollback bộ cài. Chế độ test chỉ ghi vào thư mục dự án; không cài driver/runtime thật hoặc thay registry startup. Giao diện được render để kiểm tra các trang. OAuth, đọc/ghi Drive thật, UAC và startup sau reboot cần kiểm tra với tài khoản/Windows thực tế.
+
+## Dữ liệu và giới hạn
+
+- `%LOCALAPPDATA%\GoogleNas` chứa token OAuth, cấu hình, cache và log; ACL giới hạn cho tài khoản Windows hiện tại và SYSTEM. Token theo định dạng rclone, chưa có lớp DPAPI bổ sung.
+- VFS cache `full`: tải file khi truy cập và upload thay đổi sau khi lưu. Giới hạn cache là giới hạn mềm; file mở/chờ upload có thể làm vượt mức. Không xóa cache khi còn dữ liệu chưa upload.
+- Ngắt ổ kiểm tra `inUse`, `uploadsQueued`, `uploadsInProgress`, `erroredFiles` hai lần cách nhau 6 giây. Tránh mở/ghi file trong lúc ngắt vì đây không phải khóa chống ghi đồng thời.
+- Đây là ổ đĩa cloud trên máy Windows hiện tại; chưa có SMB chia sẻ LAN, snapshot NAS, khóa file đa máy hoặc tải toàn bộ Drive để dùng offline. Tốc độ và xung đột sửa cùng file phụ thuộc mạng/Google Drive. Google Docs/Sheets không tương đương file Office thông thường.
+- Khi shutdown, upload có thể chưa hoàn tất; cache được giữ để tiếp tục khi gắn lại. Ứng dụng tự thử gắn lại sau 30 giây nếu rclone dừng. RC chỉ bind loopback, dùng mật khẩu ngẫu nhiên.
+- Shared Drives/OAuth client riêng có thể cấu hình qua rclone CLI với `--config "%LOCALAPPDATA%\GoogleNas\rclone.conf"`; giao diện mặc định dùng My Drive.
+
+## Gỡ cài đặt
+
+Thoát an toàn trước, vào Windows Settings → Apps → CYAN NAS → Uninstall, hoặc Start Menu → Gỡ CYAN NAS. Cấu hình/cache và driver/runtime dùng chung được giữ lại. Nếu muốn gỡ WinFsp, thực hiện riêng trong Windows Settings sau khi bảo đảm ứng dụng khác không cần driver.
+
+## Thành phần và nguồn chính thức
+
+WinFsp - Windows File System Proxy, Copyright (C) Bill Zissimopoulos. Bộ cài MSI được phân phối nguyên bản theo GPLv3, kèm toàn bộ giấy phép và nguồn v2.1 trong `licenses`. rclone được phân phối theo MIT. .NET Framework có giấy phép Microsoft nằm trong redistributable chính thức.
+
+- [WinFsp](https://github.com/winfsp/winfsp)
+- [rclone mount](https://rclone.org/commands/rclone_mount/)
+- [rclone Google Drive](https://rclone.org/drive/)
+- [.NET Framework 4.8 offline](https://dotnet.microsoft.com/en-us/download/dotnet-framework/thank-you/net48-offline-installer)
+- [GitHub Releases API](https://docs.github.com/en/rest/releases/releases)
