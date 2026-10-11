@@ -46,10 +46,14 @@ try {
     Check ($script:lastShare.ReadAccess -and -not $script:lastShare.ChangeAccess) 'Read-only share grants writes'
     $data.Operation='Remove';Invoke-NasOperation $data | Out-Null
     $restore=Get-Acl -LiteralPath $fixture;$restore.SetSecurityDescriptorSddlForm($originalAcl);Set-Acl -LiteralPath $fixture -AclObject $restore
+    # Windows can canonicalize inherited descriptor flags during Set-Acl.
+    # Rollback must restore the exact descriptor immediately before this operation.
+    $rollbackAcl=(Get-Acl -LiteralPath $fixture).Sddl
     $script:account=$null;$profile.CreateUser=$true;$profile.ReadOnly=$false;$data.Operation='Create';$script:failFirewall=$true
     Reject {Invoke-NasOperation $data} 'Expected firewall failure'
     Check ($script:shares.Count -eq 0 -and $script:rules.Count -eq 0 -and $null -eq $script:account) 'Creation rollback leaked resources'
-    Check ((Get-Acl -LiteralPath $fixture).Sddl -eq $originalAcl) 'Creation rollback did not restore ACL'
+    $actualAcl=(Get-Acl -LiteralPath $fixture).Sddl
+    Check ($actualAcl -eq $rollbackAcl) ("Creation rollback did not restore ACL. Expected: "+$rollbackAcl+" Actual: "+$actualAcl)
     $script:shares.FixtureNas=[pscustomobject]@{Description='OtherTool';Path=$fixture};$data.Operation='Remove'
     Reject {Invoke-NasOperation $data} 'Unrelated share removed';Check ($script:shares.Count -eq 1) 'Ownership guard failed'
     Write-Output 'NAS admin workflow: share permissions/encryption, Tailscale-only firewall, account/ACL rollback, open-file and ownership guards passed (network/account cmdlets mocked; fixture ACL real).'
