@@ -1,4 +1,6 @@
-# CYAN NAS cho Windows — v1.2.6
+# CYAN NAS cho Windows — v1.2.7
+
+v1.2.7 kiểm tra các ổ NAS từ xa mỗi phút và tự khôi phục kết nối khi mạng trở lại bằng thông tin đăng nhập Windows đã lưu. Kiểm tra chạy nền, không chặn giao diện, không ép ngắt file hoặc thay ổ khác. Bản nâng cấp tiếp tục giám sát ổ NAS cuối đã lưu; các ổ khác cần bấm Gắn / kết nối lại một lần để được ghi nhận. Máy chứa NAS phải đang bật, Tailscale và quyền truy cập vẫn còn hiệu lực.
 
 v1.2.6 đổi tên phần mềm, bộ cài, khay hệ thống và shortcut thành CYAN NAS. Giữ định danh dữ liệu và tài sản cập nhật cũ để nâng cấp từ Google NAS mà không mất cấu hình.
 

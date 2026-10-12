@@ -1,7 +1,9 @@
 name: Build and release Windows application
 on:
   push:
+    branches: ['main']
     tags: ['v*']
+    paths: ['src/Core.cs']
   pull_request:
   workflow_dispatch:
 permissions:
@@ -36,7 +38,7 @@ jobs:
             dist/*
             build/*.zip
   release:
-    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     needs: build
     runs-on: ubuntu-latest
     permissions:
@@ -57,4 +59,3 @@ jobs:
           TAG="v$VERSION"
           if [[ "$RELEASE_TAG" == v* && "$RELEASE_TAG" != "$TAG" ]]; then exit 1; fi
           gh release create "$TAG" artifacts/dist/GoogleNas.exe artifacts/dist/GoogleNas.exe.sha256 artifacts/dist/GoogleNasSetup.exe artifacts/dist/GoogleNasSetup.exe.sha256 artifacts/dist/CyanNasSetup.exe artifacts/dist/CyanNasSetup.exe.sha256 --target "$GITHUB_SHA" --title "CYAN NAS $VERSION" --generate-notes
-

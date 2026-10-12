@@ -18,7 +18,7 @@ namespace GoogleNas {
         public string Repository = Core.UpdateRepository;
     }
     public static class Core {
-        public const string Version = "1.2.6";
+        public const string Version = "1.2.7";
         public const string UpdateRepository = "cyan881990/google-nas-updates";
         public static string EffectiveRepository(string legacyRepository) { return UpdateRepository.Length>0?UpdateRepository:(legacyRepository??""); }
         public static readonly JavaScriptSerializer Json = new JavaScriptSerializer();

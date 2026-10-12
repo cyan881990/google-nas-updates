@@ -26,11 +26,45 @@ namespace GoogleNas {
     }
     public class NasService {
         private readonly string home;
+        private readonly NasConnectionMonitor monitor=new NasConnectionMonitor();
         public NasService(string directory) { home=directory; }
         public string Cli { get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),"Tailscale","tailscale.exe"); } }
         public bool Installed { get { return File.Exists(Cli); } }
         public NasProfile Load() { string path=Path.Combine(home,"nas.json"); return File.Exists(path)?Core.Json.Deserialize<NasProfile>(File.ReadAllText(path)):new NasProfile(); }
         public void Save(NasProfile profile) { string path=Path.Combine(home,"nas.json"); File.WriteAllText(path+".new",Core.Json.Serialize(profile)); if(File.Exists(path)) File.Replace(path+".new",path,null); else File.Move(path+".new",path); }
+        private List<NasProfile> Connections() {
+            string file=Path.Combine(home,"nas-connections.json");
+            return File.Exists(file)?Core.Json.Deserialize<List<NasProfile>>(File.ReadAllText(file)):new List<NasProfile> { Load() };
+        }
+        public void RememberConnection(NasProfile profile) {
+            var connections=Connections(); connections.RemoveAll(p=>p.Letter==profile.Letter);
+            connections.Add(new NasProfile { Host=profile.Host,RemoteShare=profile.RemoteShare,Letter=profile.Letter });
+            string file=Path.Combine(home,"nas-connections.json"); File.WriteAllText(file+".new",Core.Json.Serialize(connections));
+            if(File.Exists(file)) File.Replace(file+".new",file,null); else File.Move(file+".new",file);
+        }
+        public static bool CanMaintain(string actual,string expected) { return actual!=null && string.Equals(actual,expected,StringComparison.OrdinalIgnoreCase); }
+        public Task<string> MaintainConnections() { return monitor.Poll(async()=> {
+            var messages=new List<string>();
+            foreach(var p in Connections()) {
+                if(!IsTailIp(p.Host)) continue;
+                try {
+                    string expected=RemotePath(p.Host,p.RemoteShare); ValidateLetter(p.Letter);
+                    // Only mappings still owned by this profile are touched. A removed or reassigned drive stays untouched.
+                    if(!CanMaintain(MappedPath(p.Letter),expected)) continue;
+                    await Probe(p.Host).ConfigureAwait(false);
+                    if(!Directory.Exists(p.Letter+@":\")) {
+                        if(!CanMaintain(MappedPath(p.Letter),expected)) continue;
+                        var resource=new NetResource { Type=1,LocalName=p.Letter+":",RemoteName=expected };
+                        // Cached Windows credentials only: no background dialog, force-unmap or file closure.
+                        int error=WNetAddConnection3(IntPtr.Zero,ref resource,null,null,0);
+                        if(error!=0) throw new Win32Exception(error,"Bấm Gắn / kết nối lại để kiểm tra tài khoản. "+new Win32Exception(error).Message);
+                        if(!Directory.Exists(p.Letter+@":\")) throw new IOException("Windows chưa truy cập được thư mục NAS.");
+                    }
+                    messages.Add(p.Letter+": đã kết nối");
+                } catch(Exception e) { messages.Add(p.Letter+": mất kết nối — "+e.Message+" Sẽ thử lại tự động."); }
+            }
+            return messages.Count==0?"":string.Join("\n",messages);
+        }); }
         public static bool IsTailIp(string value) {
             IPAddress ip; if(!Regex.IsMatch(value??"",@"^100\.[1-9][0-9]{1,2}\.(0|[1-9][0-9]{0,2})\.(0|[1-9][0-9]{0,2})$") || !IPAddress.TryParse(value,out ip) || ip.AddressFamily!=AddressFamily.InterNetwork) return false;
             byte[] bytes=ip.GetAddressBytes(); return bytes[0]==100 && bytes[1]>=64 && bytes[1]<=127;
@@ -97,10 +131,17 @@ namespace GoogleNas {
         [DllImport("mpr.dll",CharSet=CharSet.Unicode)] private static extern int WNetAddConnection3(IntPtr owner,ref NetResource resource,string password,string username,int flags);
         [DllImport("mpr.dll",CharSet=CharSet.Unicode)] private static extern int WNetCancelConnection2(string name,int flags,bool force);
         [DllImport("mpr.dll",CharSet=CharSet.Unicode)] private static extern int WNetGetConnection(string localName,StringBuilder remoteName,ref int length);
-        public static string MappedPath(string letter) { ValidateLetter(letter); var buffer=new StringBuilder(2048); int length=buffer.Capacity; return WNetGetConnection(letter+":",buffer,ref length)==0?buffer.ToString():null; }
+        public static string ConnectionPath(int error,string remoteName) {
+            // Windows keeps the UNC name for persistent mappings that are offline (1201).
+            return (error==0 || error==1201) && !string.IsNullOrWhiteSpace(remoteName)?remoteName:null;
+        }
+        public static string MappedPath(string letter) { ValidateLetter(letter); var buffer=new StringBuilder(2048); int length=buffer.Capacity; int error=WNetGetConnection(letter+":",buffer,ref length); return ConnectionPath(error,buffer.ToString()); }
+        public static void ValidateMappingTarget(string actual,string expected,bool drivePresent,string letter) {
+            if((actual!=null && !actual.Equals(expected,StringComparison.OrdinalIgnoreCase)) || (actual==null && drivePresent)) throw new Exception("Ký tự ổ "+letter+": đang được sử dụng bởi ổ khác. Chọn ký tự khác.");
+        }
         public static void Map(IntPtr owner,string host,string share,string letter) {
             string path=RemotePath(host,share); ValidateLetter(letter);
-            if(DriveInfo.GetDrives().Any(d=>d.Name.StartsWith(letter+":",StringComparison.OrdinalIgnoreCase)) || MappedPath(letter)!=null) throw new Exception("Ký tự ổ "+letter+": đang được sử dụng. Chọn ký tự khác.");
+            ValidateMappingTarget(MappedPath(letter),path,DriveInfo.GetDrives().Any(d=>d.Name.StartsWith(letter+":",StringComparison.OrdinalIgnoreCase)),letter);
             var resource=new NetResource { Type=1,LocalName=letter+":",RemoteName=path };
             int error=WNetAddConnection3(owner,ref resource,null,null,1|8|16);
             if(error==1223) throw new Exception("Đã hủy kết nối NAS.");
@@ -111,6 +152,19 @@ namespace GoogleNas {
             string expected=RemotePath(host,share),actual=MappedPath(letter);
             if(actual==null || !actual.Equals(expected,StringComparison.OrdinalIgnoreCase)) throw new Exception("Ổ này không trỏ tới NAS đã chọn; không ngắt ổ khác.");
             int error=WNetCancelConnection2(letter+":",1,false); if(error!=0) throw new Win32Exception(error,"Đóng file đang mở trên ổ NAS trước khi ngắt. "+new Win32Exception(error).Message);
+        }
+    }
+    public class NasConnectionMonitor {
+        private Task<string> pending;
+        private DateTime next=DateTime.MinValue;
+        // One worker maximum even when a Windows network call takes longer than expected.
+        public async Task<string> Poll(Func<Task<string>> work) {
+            if(pending==null) {
+                if(DateTime.UtcNow<next) return null;
+                pending=Task.Run(work);
+            }
+            if(await Task.WhenAny(pending,Task.Delay(100))!=pending) return null;
+            try { return await pending; } finally { pending=null; next=DateTime.UtcNow.AddSeconds(60); }
         }
     }
 }

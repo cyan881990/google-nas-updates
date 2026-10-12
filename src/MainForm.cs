@@ -11,7 +11,7 @@ namespace GoogleNas {
         private readonly NasService nas;
         private TextBox nasFolder=new TextBox(), nasShare=new TextBox(), nasUser=new TextBox(), nasPassword=new TextBox(), remoteShare=new TextBox();
         private ComboBox nasHost=new ComboBox(), nasLetter=new ComboBox(); private CheckBox nasReadOnly=new CheckBox(), nasCreateUser=new CheckBox();
-        private Label nasNetwork, nasServer;
+        private Label nasNetwork, nasServer, nasConnection;
         private Settings settings;
         private TextBox remote=new TextBox(), folder=new TextBox();
         private ComboBox letter=new ComboBox(); private NumericUpDown cache=new NumericUpDown();
@@ -140,13 +140,15 @@ namespace GoogleNas {
             Action(serverButtons,"Dừng chia sẻ",false,async()=>{ var result=await nas.Admin("Remove",NasValues()); nasServer.Text=Convert.ToString(((Dictionary<string,object>)result["details"])["message"]); });
             Action(serverButtons,"Kiểm tra NAS",false,async()=>{ var result=await nas.Admin("Inspect",NasValues()); var details=(Dictionary<string,object>)result["details"]; nasServer.Text=Convert.ToString(details["message"])+(details.ContainsKey("folder")?"\n"+details["folder"]:""); });
             var address=Card(page,126); nasServer=TextAt(address,"Chưa kiểm tra chia sẻ. Tạo NAS hoặc bấm Kiểm tra NAS.\nNAS dùng mật khẩu tài khoản Windows; mã PIN đăng nhập không dùng được.",10,false,Theme.Muted,22,20); nasServer.AutoSize=false; nasServer.Size=new Size(730,89); nasServer.Anchor=AnchorStyles.Top|AnchorStyles.Left|AnchorStyles.Right;
-            var client=Card(page,308); TextAt(client,"Gắn ổ từ máy khác",15,true,Theme.Ink,22,18); TextAt(client,"Chọn máy Tailscale hoặc nhập IP 100.x.x.x của máy chứa ổ.",10,false,Theme.Muted,22,51);
+            var client=Card(page,426); TextAt(client,"Gắn ổ từ máy khác",15,true,Theme.Ink,22,18); TextAt(client,"Chọn máy Tailscale hoặc nhập IP 100.x.x.x của máy chứa ổ.",10,false,Theme.Muted,22,51);
             Field(client,"Máy chứa NAS",nasHost,90); Field(client,"Tên NAS từ xa",remoteShare,132); Field(client,"Ký tự ổ",nasLetter,174);
             var clientButtons=Buttons(client,220);
-            Action(clientButtons,"Gắn ổ NAS",true,async()=>{ var p=NasValues(); NasService.RemotePath(p.Host,p.RemoteShare); NasService.ValidateLetter(p.Letter); var state=await nas.Status(); if(!state.Ready) throw new Exception("Đăng nhập Tailscale trước khi gắn NAS."); status.Text="Đang kiểm tra máy NAS…"; await NasService.Probe(p.Host); IntPtr owner=Handle; await Task.Run(()=>NasService.Map(owner,p.Host,p.RemoteShare,p.Letter)); nas.Save(p); status.Text="Đã gắn NAS vào ổ "+p.Letter+":"; Open(p.Letter+@":\"); });
-            Action(clientButtons,"Mở ổ NAS",false,()=>{ var p=NasValues(); if(!Directory.Exists(p.Letter+@":\")) throw new Exception("Ổ NAS chưa sẵn sàng."); Open(p.Letter+@":\"); return Task.FromResult(0); });
+            Action(clientButtons,"Gắn / kết nối lại",true,async()=>{ var p=NasValues(); NasService.RemotePath(p.Host,p.RemoteShare); NasService.ValidateLetter(p.Letter); var state=await nas.Status(); if(!state.Ready) throw new Exception("Đăng nhập Tailscale trước khi gắn NAS."); status.Text="Đang kiểm tra máy NAS…"; await NasService.Probe(p.Host); IntPtr owner=Handle; await Task.Run(()=>NasService.Map(owner,p.Host,p.RemoteShare,p.Letter)); nas.Save(p); nas.RememberConnection(p); status.Text="Đã gắn NAS vào ổ "+p.Letter+":"; Process.Start("explorer.exe",Core.Quote(p.Letter+@":\")); });
+            Action(clientButtons,"Mở ổ NAS",false,async()=>{ var p=NasValues(); string expected=NasService.RemotePath(p.Host,p.RemoteShare); if(!string.Equals(await Task.Run(()=>NasService.MappedPath(p.Letter)),expected,StringComparison.OrdinalIgnoreCase)) throw new Exception("Gắn hoặc kết nối lại ổ NAS trước."); await NasService.Probe(p.Host); Process.Start("explorer.exe",Core.Quote(p.Letter+@":\")); });
             Action(clientButtons,"Ngắt ổ NAS",false,async()=>{ var p=NasValues(); await Task.Run(()=>NasService.Unmap(p.Host,p.RemoteShare,p.Letter)); status.Text="Đã ngắt ổ NAS"; });
             TextAt(client,"Windows hỏi tài khoản/mật khẩu; bạn có thể lưu trong hộp thoại Windows.",9,false,Theme.Muted,22,280);
+            nasConnection=TextAt(client,"Tự kiểm tra và kết nối lại ổ NAS mỗi phút khi ứng dụng đang chạy.",10,false,Theme.Muted,22,310);
+            nasConnection.AutoSize=false; nasConnection.Size=new Size(710,96); nasConnection.Anchor=AnchorStyles.Top|AnchorStyles.Left|AnchorStyles.Right;
             var note=Card(page,185); TextAt(note,"NAS hoạt động cùng Windows",12,true,Theme.Ink,22,18); TextAt(note,"Chia sẻ NAS vẫn hoạt động khi đóng tool. Không cần mở port trên router.\nGiữ máy chứa ổ bật; chế độ ngủ sẽ làm mất kết nối.\nỔ dữ liệu cần NTFS/ReFS. Google Drive tiếp tục hoạt động riêng.",10,false,Theme.Muted,22,50);
             Action(Buttons(note,122),"Chạy khi đăng xuất",false,async()=>{ await nas.Admin("Unattended",NasValues()); status.Text="Tailscale đã bật chạy khi đăng xuất Windows"; });
         }
@@ -179,6 +181,7 @@ namespace GoogleNas {
         private async Task Tick() {
             if(busy || polling) return; polling=true;
             try {
+                try { string connection=await nas.MaintainConnections(); if(connection!=null && nasConnection!=null) nasConnection.Text=connection; } catch(Exception e) { if(nasConnection!=null) nasConnection.Text="Kết nối NAS: "+e.Message; }
                 if(service.Running) { var stats=await service.Rc("vfs/stats"); var d=(Dictionary<string,object>)stats["diskCache"]; queued.Text=Core.Number(d,"uploadsQueued").ToString(); uploading.Text=Core.Number(d,"uploadsInProgress").ToString(); cacheUsed.Text=(Core.Number(d,"bytesUsed")/1073741824.0).ToString("0.0")+" GB"; status.Text=Core.Number(d,"erroredFiles")>0?"Có file upload lỗi. Kiểm tra nhật ký trước khi ngắt.":"Đã kết nối · Thay đổi được đồng bộ sau khi lưu"; }
                 else if(wantMount && DateTime.UtcNow>=nextRetry) await StartMount();
                 if(pages[2].Visible && nas.Installed) await RefreshNas();
