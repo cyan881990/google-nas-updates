@@ -92,7 +92,7 @@ namespace GoogleNas {
             if (!WinFspInstalled) throw new Exception("Driver ổ đĩa chưa sẵn sàng. Chạy GoogleNasSetup.exe để cài hoặc khởi động lại Windows nếu vừa cài xong.");
             if (!File.Exists(Config)) throw new Exception("Kết nối tài khoản Google trước.");
             if (Running) return;
-            if (Directory.Exists(s.Letter + @":\")) throw new Exception("Ký tự ổ đĩa đã được sử dụng.");
+            if (DriveInfo.GetDrives().Any(d=>d.Name.StartsWith(s.Letter+":",StringComparison.OrdinalIgnoreCase))) throw new Exception("Ký tự ổ đĩa đã được sử dụng.");
             Directory.CreateDirectory(Cache);
             if (File.Exists(Log) && new FileInfo(Log).Length > 10 * 1024 * 1024) { File.Copy(Log, Log + ".previous", true); File.Delete(Log); }
             var listener = new TcpListener(IPAddress.Loopback, 0); listener.Start(); port = ((IPEndPoint)listener.LocalEndpoint).Port; listener.Stop();
@@ -111,7 +111,7 @@ namespace GoogleNas {
             request.Proxy = null; request.Method = "POST"; request.ContentType = "application/json"; request.Timeout = 5000; request.ReadWriteTimeout = 5000;
             request.Headers[HttpRequestHeader.Authorization] = "Basic " + Convert.ToBase64String(Encoding.UTF8.GetBytes("googlenas:" + password));
             byte[] body = Encoding.UTF8.GetBytes("{}"); request.ContentLength = body.Length;
-            var task = Send(request, body);
+            var task = Task.Run(()=>Send(request, body));
             if (await Task.WhenAny(task, Task.Delay(6000)) != task) { request.Abort(); throw new Exception("Hết thời gian chờ rclone."); }
             return await task;
         }
@@ -123,10 +123,10 @@ namespace GoogleNas {
             if (!Running) return;
             // Two checks separated by write-back interval reduce the window for recently closed writes.
             if (!Core.SafeToStop(await Rc("vfs/stats"))) throw new Exception("Đóng các file đang mở và chờ upload hoàn tất trước khi ngắt/cập nhật.");
-            Core.CheckCacheIdle(Cache);
+            await Task.Run(()=>Core.CheckCacheIdle(Cache));
             await Task.Delay(6000);
             if (!Core.SafeToStop(await Rc("vfs/stats"))) throw new Exception("Drive còn file đang dùng hoặc chờ upload. Thử lại sau.");
-            Core.CheckCacheIdle(Cache);
+            await Task.Run(()=>Core.CheckCacheIdle(Cache));
             try { await Rc("core/quit"); } catch (WebException) { /* quit may close HTTP before response */ }
             var p = Mount;
             if (!await Task.Run(() => p.WaitForExit(10000))) throw new Exception("rclone chưa thoát. Không cưỡng chế dừng để giữ cache.");

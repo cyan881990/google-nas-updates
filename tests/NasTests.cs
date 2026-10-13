@@ -35,6 +35,16 @@ class NasTests {
             Check(!NasService.ParseNetwork("{\"BackendState\":\"Stopped\",\"TailscaleIPs\":[\"100.100.0.1\"]}").Ready,"Stopped cannot share");
             Directory.CreateDirectory(args[0]); var service=new NasService(args[0]); var profile=new NasProfile { Host="100.64.0.1",Share="Data_1",CreateUser=false }; service.Save(profile); var saved=service.Load(); Check(saved.Host==profile.Host && saved.Share==profile.Share && !saved.CreateUser,"Profile roundtrip");
             Check(!File.ReadAllText(Path.Combine(args[0],"nas.json")).Contains("Password"),"Profile has no passwords");
+            service.SavePassword("nasuser","Fixture!PasswordSecret12");
+            service.SavePassword("otheruser","Other!SecretPassword12");
+            Check(new NasService(args[0]).LoadPassword("NASUSER")=="Fixture!PasswordSecret12","Password survives restart and matches account ignoring case");
+            Check(service.LoadPassword("missinguser")=="","No password from another NAS account");
+            service.SavePassword("nasuser","Changed!SecretPassword12");
+            Check(service.LoadPassword("nasuser")=="Changed!SecretPassword12" && service.LoadPassword("otheruser")=="Other!SecretPassword12","Replacing one password preserves other accounts");
+            var protectedPassword=File.ReadAllBytes(Path.Combine(args[0],"nas-passwords.dat"));
+            Check(!Encoding.UTF8.GetString(protectedPassword).Contains("SecretPassword12"),"Stored passwords are not plaintext");
+            protectedPassword[protectedPassword.Length/2]^=1; File.WriteAllBytes(Path.Combine(args[0],"nas-passwords.dat"),protectedPassword);
+            Reject(()=>service.LoadPassword("nasuser"),"Tampered password file fails closed");
             service.RememberConnection(new NasProfile { Host="100.64.0.1",RemoteShare="Data_1",Letter="N" });
             service.RememberConnection(new NasProfile { Host="100.64.0.2",RemoteShare="Data_2",Letter="P" });
             var savedConnections=File.ReadAllText(Path.Combine(args[0],"nas-connections.json"));

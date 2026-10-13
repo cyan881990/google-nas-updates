@@ -11,6 +11,7 @@ using System.Windows.Forms;
 namespace GoogleNas {
     static class Program {
         internal static readonly int ShowWindowMessage=RegisterWindowMessage("GoogleNas.ShowWindow."+Environment.UserName);
+        internal static readonly int TaskbarCreatedMessage=RegisterWindowMessage("TaskbarCreated");
         [System.Runtime.InteropServices.DllImport("user32.dll",CharSet=System.Runtime.InteropServices.CharSet.Unicode)] private static extern int RegisterWindowMessage(string name);
         [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern bool PostMessage(IntPtr window,int message,IntPtr wParam,IntPtr lParam);
         [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern bool AllowSetForegroundWindow(int processId);

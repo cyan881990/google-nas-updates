@@ -1,4 +1,6 @@
-# CYAN NAS cho Windows — v1.2.7
+# CYAN NAS cho Windows — v1.2.8
+
+v1.2.8 chuyển kiểm tra ổ mạng và kiểm tra cache sang nền, giới hạn chờ kiểm tra ổ để cửa sổ vẫn mở lại được khi ổ mất kết nối. Khôi phục biểu tượng khay khi Explorer khởi động lại. Thêm Hiện mật khẩu, Ẩn mật khẩu và Lưu mật khẩu cho tài khoản NAS. Khi tạo tài khoản mới thành công, mật khẩu được lưu tự động trong %LOCALAPPDATA%\GoogleNas\nas-passwords.dat bằng Windows DPAPI CurrentUser. Tệp nằm trong thư mục dữ liệu riêng có ACL, chỉ giải mã dưới cùng tài khoản Windows trên máy đã lưu. Tài khoản NAS đã tạo ở bản cũ cần nhập và lưu mật khẩu một lần; tool không đọc được mật khẩu gốc từ Windows. Lưu mật khẩu của tài khoản có sẵn không đổi mật khẩu Windows.
 
 v1.2.7 kiểm tra các ổ NAS từ xa mỗi phút và tự khôi phục kết nối khi mạng trở lại bằng thông tin đăng nhập Windows đã lưu. Kiểm tra chạy nền, không chặn giao diện, không ép ngắt file hoặc thay ổ khác. Bản nâng cấp tiếp tục giám sát ổ NAS cuối đã lưu; các ổ khác cần bấm Gắn / kết nối lại một lần để được ghi nhận. Máy chứa NAS phải đang bật, Tailscale và quyền truy cập vẫn còn hiệu lực.
 

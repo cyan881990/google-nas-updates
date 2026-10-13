@@ -18,10 +18,10 @@ namespace GoogleNas {
         public string Repository = Core.UpdateRepository;
     }
     public static class Core {
-        public const string Version = "1.2.7";
+        public const string Version = "1.2.8";
         public const string UpdateRepository = "cyan881990/google-nas-updates";
         public static string EffectiveRepository(string legacyRepository) { return UpdateRepository.Length>0?UpdateRepository:(legacyRepository??""); }
-        public static readonly JavaScriptSerializer Json = new JavaScriptSerializer();
+        public static JavaScriptSerializer Json { get { return new JavaScriptSerializer(); } }
         public static void Validate(Settings s) {
             if (!Regex.IsMatch(s.Remote ?? "", @"^[A-Za-z0-9_-]{1,64}$")) throw new Exception("Tên kết nối chỉ gồm chữ, số, dấu - và _.");
             if (!Regex.IsMatch(s.Letter ?? "", @"^[D-Z]$")) throw new Exception("Chọn ký tự ổ đĩa từ D đến Z.");

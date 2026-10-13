@@ -28,6 +28,24 @@ namespace GoogleNas {
         private readonly string home;
         private readonly NasConnectionMonitor monitor=new NasConnectionMonitor();
         public NasService(string directory) { home=directory; }
+        private string PasswordFile { get { return Path.Combine(home,"nas-passwords.dat"); } }
+        private Dictionary<string,string> Passwords() {
+            if(!File.Exists(PasswordFile)) return new Dictionary<string,string>();
+            byte[] clear=ProtectedData.Unprotect(File.ReadAllBytes(PasswordFile),null,DataProtectionScope.CurrentUser);
+            try { return Core.Json.Deserialize<Dictionary<string,string>>(Encoding.UTF8.GetString(clear)); }
+            finally { Array.Clear(clear,0,clear.Length); }
+        }
+        public void SavePassword(string user,string password) {
+            ValidateUser(user); if(string.IsNullOrEmpty(password)) throw new Exception("Nhập mật khẩu NAS cần lưu.");
+            var values=Passwords(); values[user.ToLowerInvariant()]=password;
+            byte[] clear=Encoding.UTF8.GetBytes(Core.Json.Serialize(values));
+            try {
+                Directory.CreateDirectory(home);
+                File.WriteAllBytes(PasswordFile+".new",ProtectedData.Protect(clear,null,DataProtectionScope.CurrentUser));
+                if(File.Exists(PasswordFile)) File.Replace(PasswordFile+".new",PasswordFile,null); else File.Move(PasswordFile+".new",PasswordFile);
+            } finally { Array.Clear(clear,0,clear.Length); }
+        }
+        public string LoadPassword(string user) { ValidateUser(user); string value; return Passwords().TryGetValue(user.ToLowerInvariant(),out value)?value:""; }
         public string Cli { get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),"Tailscale","tailscale.exe"); } }
         public bool Installed { get { return File.Exists(Cli); } }
         public NasProfile Load() { string path=Path.Combine(home,"nas.json"); return File.Exists(path)?Core.Json.Deserialize<NasProfile>(File.ReadAllText(path)):new NasProfile(); }

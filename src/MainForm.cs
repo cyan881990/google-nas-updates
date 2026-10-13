@@ -9,6 +9,7 @@ namespace GoogleNas {
     public class MainForm : Form {
         private readonly Services service;
         private readonly NasService nas;
+        private readonly DriveProbe driveProbe=new DriveProbe();
         private TextBox nasFolder=new TextBox(), nasShare=new TextBox(), nasUser=new TextBox(), nasPassword=new TextBox(), remoteShare=new TextBox();
         private ComboBox nasHost=new ComboBox(), nasLetter=new ComboBox(); private CheckBox nasReadOnly=new CheckBox(), nasCreateUser=new CheckBox();
         private Label nasNetwork, nasServer, nasConnection;
@@ -56,7 +57,7 @@ namespace GoogleNas {
             status.TextChanged+=(a,b)=>{ footer.Text=status.Text; };
             ResumeLayout(true);
             if(previewOnly) return;
-            var menu=new ContextMenuStrip(); menu.Items.Add("Mở CYAN NAS",null,(a,b)=>ShowWindow()); menu.Items.Add("Mở ổ đĩa",null,(a,b)=>{ if(Directory.Exists(settings.Letter+@":\")) Open(settings.Letter+@":\"); });
+            var menu=new ContextMenuStrip(); menu.Items.Add("Mở CYAN NAS",null,(a,b)=>ShowWindow()); menu.Items.Add("Mở ổ đĩa",null,(a,b)=>{ Process.Start("explorer.exe",Core.Quote(settings.Letter+@":\")); });
             menu.Items.Add("Thoát an toàn",null,async(a,b)=>await Run(async()=>{ await service.Stop(); exiting=true; Close(); }));
             tray=new NotifyIcon { Icon=Icon, Text="CYAN NAS", Visible=true, ContextMenuStrip=menu }; tray.DoubleClick+=(a,b)=>ShowWindow();
             tray.MouseClick+=(a,b)=>{ if(b.Button==MouseButtons.Left) ShowWindow(); };
@@ -81,7 +82,7 @@ namespace GoogleNas {
             driveLabel=TextAt(drive,settings.Letter+":",40,true,Theme.Blue,22,52); TextAt(drive,"Google Drive",19,true,Theme.Ink,138,62); TextAt(drive,"Truy cập file trực tiếp trong Windows Explorer",10,false,Theme.Muted,138,98);
             status=TextAt(drive,File.Exists(service.Config)?"Sẵn sàng kết nối":"Kết nối tài khoản Google để bắt đầu",10,false,Theme.Muted,22,143); status.AutoSize=false; status.Size=new Size(730,45); status.Anchor=AnchorStyles.Top|AnchorStyles.Left|AnchorStyles.Right;
             var buttons=Buttons(drive,192); Action(buttons,"Gắn ổ đĩa",true,async()=>{ Save(); wantMount=true; await StartMount(); });
-            Action(buttons,"Mở trong Explorer",false,()=>{ if(!Directory.Exists(settings.Letter+@":\")) throw new Exception("Ổ đĩa chưa sẵn sàng."); Open(settings.Letter+@":\"); return Task.FromResult(0); });
+            Action(buttons,"Mở trong Explorer",false,()=>{ Process.Start("explorer.exe",Core.Quote(settings.Letter+@":\")); return Task.FromResult(0); });
             Action(buttons,"Ngắt kết nối",false,async()=>{ await service.Stop(); wantMount=false; status.Text="Đã ngắt kết nối"; });
             var metrics=Card(page,134); var grid=new TableLayoutPanel { Dock=DockStyle.Fill, ColumnCount=3, RowCount=1 }; for(int i=0;i<3;i++) grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,33.33f)); metrics.Controls.Add(grid);
             queued=Metric(grid,0,"CHỜ UPLOAD"); uploading=Metric(grid,1,"ĐANG UPLOAD"); cacheUsed=Metric(grid,2,"CACHE TRÊN MÁY");
@@ -115,27 +116,35 @@ namespace GoogleNas {
             var values=nas.Load(); nasFolder.Text=values.Folder; nasShare.Text=values.Share; nasUser.Text=values.User; nasPassword.UseSystemPasswordChar=true;
             nasHost.Text=values.Host; remoteShare.Text=values.RemoteShare; nasLetter.DropDownStyle=ComboBoxStyle.DropDownList; for(char c='D';c<='Z';c++) nasLetter.Items.Add(c.ToString()); nasLetter.SelectedItem=values.Letter;
             nasReadOnly.Text="Chỉ cho phép đọc file"; nasReadOnly.Checked=values.ReadOnly; nasCreateUser.Text="Tạo tài khoản Windows riêng cho NAS"; nasCreateUser.Checked=values.CreateUser;
-            nasCreateUser.CheckedChanged+=(a,b)=>nasPassword.Enabled=nasCreateUser.Checked; nasPassword.Enabled=values.CreateUser;
+            nasUser.TextChanged+=(a,b)=>{ nasPassword.Clear(); nasPassword.UseSystemPasswordChar=true; };
             var page=Page(); var network=Card(page,203); TextAt(network,"Kết nối Internet riêng tư",15,true,Theme.Ink,22,18);
             nasNetwork=TextAt(network,nas.Installed?"Đã có Tailscale. Bấm Kiểm tra kết nối hoặc Đăng nhập.":"Chưa cài Tailscale. Tool sẽ tải từ nguồn chính thức khi bạn bấm Cài Tailscale.",10,false,Theme.Muted,22,62); nasNetwork.AutoSize=false; nasNetwork.Size=new Size(730,56); nasNetwork.Anchor=AnchorStyles.Top|AnchorStyles.Left|AnchorStyles.Right;
             var networkButtons=Buttons(network,133);
             Action(networkButtons,"Cài Tailscale",true,async()=>{ nasNetwork.Text="Đang tải/cài Tailscale. Chấp nhận quyền Windows nếu xuất hiện…"; var result=await nas.Admin("Install",NasValues()); var details=(Dictionary<string,object>)result["details"]; if(details.ContainsKey("restart") && Convert.ToBoolean(details["restart"])) { nasNetwork.Text="Đã cài Tailscale. Khởi động lại Windows trước khi kết nối."; MessageBox.Show(this,nasNetwork.Text,"Cài Tailscale"); } else await RefreshNas(); });
             Action(networkButtons,"Đăng nhập",false,async()=>{ await nas.Login(text=>nasNetwork.Text=text); await RefreshNas(); });
             Action(networkButtons,"Kiểm tra kết nối",false,RefreshNas);
-            var server=Card(page,490); TextAt(server,"Chia sẻ ổ trên máy này",15,true,Theme.Ink,22,18); TextAt(server,"Chọn thư mục hoặc ổ dữ liệu. Máy này phải bật để truy cập từ xa.",10,false,Theme.Muted,22,51);
+            var server=Card(page,556); TextAt(server,"Chia sẻ ổ trên máy này",15,true,Theme.Ink,22,18); TextAt(server,"Chọn thư mục hoặc ổ dữ liệu. Máy này phải bật để truy cập từ xa.",10,false,Theme.Muted,22,51);
             Field(server,"Ổ / thư mục",nasFolder,88);
             Action(Buttons(server,123),"Chọn thư mục / ổ",false,()=>{ using(var picker=new FolderBrowserDialog { Description="Chọn ổ dữ liệu hoặc thư mục cần chia sẻ",ShowNewFolderButton=false }) if(picker.ShowDialog(this)==DialogResult.OK) nasFolder.Text=picker.SelectedPath; return Task.FromResult(0); });
-            Field(server,"Tên NAS",nasShare,183); Field(server,"Tài khoản NAS",nasUser,225); Field(server,"Mật khẩu mới",nasPassword,267);
-            CheckAt(server,nasCreateUser,314); CheckAt(server,nasReadOnly,348);
-            TextAt(server,"Mật khẩu mới: ≥12 ký tự, có chữ hoa, chữ thường, số và ký hiệu.",9,false,Theme.Muted,22,388);
-            var serverButtons=Buttons(server,427);
+            Field(server,"Tên NAS",nasShare,183); Field(server,"Tài khoản NAS",nasUser,225); Field(server,"Mật khẩu NAS",nasPassword,267);
+            var passwordButtons=Buttons(server,307);
+            Action(passwordButtons,"Hiện mật khẩu",false,()=>{ if(nasPassword.UseSystemPasswordChar) { if(nasPassword.Text.Length==0) nasPassword.Text=nas.LoadPassword(nasUser.Text.Trim()); if(nasPassword.Text.Length==0) throw new Exception("Chưa lưu mật khẩu tài khoản này. Nhập mật khẩu và bấm Lưu mật khẩu."); nasPassword.UseSystemPasswordChar=false; } else nasPassword.UseSystemPasswordChar=true; return Task.FromResult(0); });
+            Action(passwordButtons,"Ẩn mật khẩu",false,()=>{ nasPassword.UseSystemPasswordChar=true; return Task.FromResult(0); });
+            Action(passwordButtons,"Lưu mật khẩu",false,()=>{ nas.SavePassword(nasUser.Text.Trim(),nasPassword.Text); nasPassword.UseSystemPasswordChar=true; status.Text="Đã lưu mật khẩu mã hóa trong thư mục dữ liệu tool. Không thay mật khẩu Windows."; return Task.FromResult(0); });
+            Deactivate+=(a,b)=>nasPassword.UseSystemPasswordChar=true;
+            CheckAt(server,nasCreateUser,376); CheckAt(server,nasReadOnly,410);
+            TextAt(server,"Mật khẩu mới: ≥12 ký tự, có chữ hoa, chữ thường, số và ký hiệu.",9,false,Theme.Muted,22,450);
+            var serverButtons=Buttons(server,489);
             Action(serverButtons,"Tạo NAS",true,async()=>{
                 var p=NasValues(); NasService.ValidateShare(p.Share); NasService.ValidateUser(p.User);
                 nasServer.Text="Đang tạo NAS. Chấp nhận quyền Windows nếu xuất hiện…";
                 Dictionary<string,object> result;
-                try { result=await nas.Admin("Create",p,nasPassword.Text); } finally { nasPassword.Clear(); }
+                string enteredPassword=nasPassword.Text;
+                bool createdUser=p.CreateUser; string passwordWarning="";
+                try { result=await nas.Admin("Create",p,enteredPassword); if(createdUser) { try { nas.SavePassword(p.User,enteredPassword); } catch { passwordWarning="\nNAS đã tạo nhưng chưa lưu được mật khẩu. Nhập lại và bấm Lưu mật khẩu."; } } } finally { nasPassword.Clear(); nasPassword.UseSystemPasswordChar=true; }
                 var details=(Dictionary<string,object>)result["details"]; nasCreateUser.Checked=false; p.CreateUser=false; nas.Save(p);
                 nasServer.Text="Đã bật NAS: "+details["path"]+"\nTài khoản truy cập: "+details["account"]+" · "+(p.ReadOnly?"Chỉ đọc":"Đọc và ghi")+"\nNhập địa chỉ và tài khoản này trên máy từ xa.";
+                nasServer.Text+=passwordWarning;
             });
             Action(serverButtons,"Dừng chia sẻ",false,async()=>{ var result=await nas.Admin("Remove",NasValues()); nasServer.Text=Convert.ToString(((Dictionary<string,object>)result["details"])["message"]); });
             Action(serverButtons,"Kiểm tra NAS",false,async()=>{ var result=await nas.Admin("Inspect",NasValues()); var details=(Dictionary<string,object>)result["details"]; nasServer.Text=Convert.ToString(details["message"])+(details.ContainsKey("folder")?"\n"+details["folder"]:""); });
@@ -175,8 +184,8 @@ namespace GoogleNas {
         }
         private void DependencyStatus() { dependencies.Text="Ổ đĩa: "+(File.Exists(service.Rclone)?"sẵn sàng":"cần sửa bản cài")+"   •   Driver: "+(service.WinFspInstalled?"sẵn sàng":"chưa sẵn sàng"); }
         private async Task StartMount() {
-            nextRetry=DateTime.UtcNow.AddSeconds(30); DependencyStatus(); service.Start(settings); status.Text="Đang kết nối ổ "+settings.Letter+": …";
-            for(int i=0;i<20;i++) { await Task.Delay(1000); if(!service.Running) throw new Exception("Không gắn được ổ. Mở Thông tin → Xem nhật ký để kiểm tra."); if(Directory.Exists(settings.Letter+@":\")) { status.Text="Đã kết nối · File của bạn đã sẵn sàng"; return; } } status.Text="Đang chờ ổ đĩa sẵn sàng. Kiểm tra kết nối mạng.";
+            nextRetry=DateTime.UtcNow.AddSeconds(30); DependencyStatus(); await Task.Run(()=>service.Start(settings)); status.Text="Đang kết nối ổ "+settings.Letter+": …";
+            for(int i=0;i<20;i++) { await Task.Delay(1000); if(!service.Running) throw new Exception("Không gắn được ổ. Mở Thông tin → Xem nhật ký để kiểm tra."); if(await driveProbe.Ready(settings.Letter+@":\")) { status.Text="Đã kết nối · File của bạn đã sẵn sàng"; return; } } status.Text="Đang chờ ổ đĩa sẵn sàng. Kiểm tra kết nối mạng.";
         }
         private async Task Tick() {
             if(busy || polling) return; polling=true;
@@ -196,6 +205,7 @@ namespace GoogleNas {
         public void PreviewPage(int index) { SelectPage(index); }
         public void ShowWindow() { ShowInTaskbar=true; Show(); WindowState=FormWindowState.Normal; BringToFront(); Activate(); }
         protected override void WndProc(ref Message message) {
+            if(message.Msg==Program.TaskbarCreatedMessage && tray!=null) { tray.Visible=false; tray.Visible=true; }
             if(message.Msg==Program.ShowWindowMessage) { ShowWindow(); return; }
             base.WndProc(ref message);
         }
