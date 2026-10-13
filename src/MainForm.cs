@@ -10,7 +10,7 @@ namespace GoogleNas {
         private readonly Services service;
         private readonly NasService nas;
         private readonly DriveProbe driveProbe=new DriveProbe();
-        private TextBox nasFolder=new TextBox(), nasShare=new TextBox(), nasUser=new TextBox(), nasPassword=new TextBox(), remoteShare=new TextBox();
+        private TextBox nasFolder=new TextBox(), nasShare=new TextBox(), nasUser=new TextBox(), nasPassword=new TextBox(), remoteShare=new TextBox(), remoteUser=new TextBox(), remotePassword=new TextBox();
         private ComboBox nasHost=new ComboBox(), nasLetter=new ComboBox(); private CheckBox nasReadOnly=new CheckBox(), nasCreateUser=new CheckBox();
         private Label nasNetwork, nasServer, nasConnection;
         private Settings settings;
@@ -19,7 +19,7 @@ namespace GoogleNas {
         private CheckBox startup=new CheckBox(), autoMount=new CheckBox(), autoUpdate=new CheckBox();
         private Label status, dependencies, driveLabel, queued, uploading, cacheUsed, pageTitle;
         private NotifyIcon tray; private Timer timer=new Timer();
-        private bool busy, exiting, polling, wantMount;
+        private bool busy, exiting, polling, wantMount, updatingHosts;
         private DateTime nextRetry=DateTime.MinValue, nextUpdate=DateTime.UtcNow.AddHours(6);
         private List<Button> actionButtons=new List<Button>(), navigation=new List<Button>();
         private List<Panel> pages=new List<Panel>(); private Panel pageHost;
@@ -105,16 +105,16 @@ namespace GoogleNas {
         }
         private NasProfile NasValues() {
             string host=nasHost.Text.Trim(); int separator=host.LastIndexOf('·'); if(separator>=0) host=host.Substring(separator+1).Trim();
-            return new NasProfile { Folder=nasFolder.Text.Trim(),Share=nasShare.Text.Trim(),User=nasUser.Text.Trim(),Host=host,RemoteShare=remoteShare.Text.Trim(),Letter=Convert.ToString(nasLetter.SelectedItem),ReadOnly=nasReadOnly.Checked,CreateUser=nasCreateUser.Checked };
+            return new NasProfile { Folder=nasFolder.Text.Trim(),Share=nasShare.Text.Trim(),User=nasUser.Text.Trim(),Host=host,RemoteShare=remoteShare.Text.Trim(),Letter=Convert.ToString(nasLetter.SelectedItem),ReadOnly=nasReadOnly.Checked,CreateUser=nasCreateUser.Checked,RemoteUser=remoteUser.Text.Trim() };
         }
         private async Task RefreshNas() {
             var state=await nas.Status();
             nasNetwork.Text=state.Ready?"Đã kết nối Tailscale · IP máy này: "+state.Address+"\nMáy từ xa cần đăng nhập cùng mạng Tailscale.":state.State=="NotInstalled"?"Chưa cài Tailscale. Bấm Cài Tailscale để tải và cài tự động.":"Tailscale: "+state.State+" · Bấm Đăng nhập để kết nối.";
-            string selected=nasHost.Text; nasHost.Items.Clear(); foreach(string peer in state.Peers) nasHost.Items.Add(peer); nasHost.Text=selected;
+            string selected=nasHost.Text; updatingHosts=true; try { nasHost.Items.Clear(); foreach(string peer in state.Peers) nasHost.Items.Add(peer); nasHost.Text=selected; } finally { updatingHosts=false; }
         }
         private void BuildNas() {
             var values=nas.Load(); nasFolder.Text=values.Folder; nasShare.Text=values.Share; nasUser.Text=values.User; nasPassword.UseSystemPasswordChar=true;
-            nasHost.Text=values.Host; remoteShare.Text=values.RemoteShare; nasLetter.DropDownStyle=ComboBoxStyle.DropDownList; for(char c='D';c<='Z';c++) nasLetter.Items.Add(c.ToString()); nasLetter.SelectedItem=values.Letter;
+            nasHost.Text=values.Host; remoteShare.Text=values.RemoteShare; remoteUser.Text=values.RemoteUser; remotePassword.UseSystemPasswordChar=true; nasLetter.DropDownStyle=ComboBoxStyle.DropDownList; for(char c='D';c<='Z';c++) nasLetter.Items.Add(c.ToString()); nasLetter.SelectedItem=values.Letter;
             nasReadOnly.Text="Chỉ cho phép đọc file"; nasReadOnly.Checked=values.ReadOnly; nasCreateUser.Text="Tạo tài khoản Windows riêng cho NAS"; nasCreateUser.Checked=values.CreateUser;
             nasUser.TextChanged+=(a,b)=>{ nasPassword.Clear(); nasPassword.UseSystemPasswordChar=true; };
             var page=Page(); var network=Card(page,203); TextAt(network,"Kết nối Internet riêng tư",15,true,Theme.Ink,22,18);
@@ -149,14 +149,20 @@ namespace GoogleNas {
             Action(serverButtons,"Dừng chia sẻ",false,async()=>{ var result=await nas.Admin("Remove",NasValues()); nasServer.Text=Convert.ToString(((Dictionary<string,object>)result["details"])["message"]); });
             Action(serverButtons,"Kiểm tra NAS",false,async()=>{ var result=await nas.Admin("Inspect",NasValues()); var details=(Dictionary<string,object>)result["details"]; nasServer.Text=Convert.ToString(details["message"])+(details.ContainsKey("folder")?"\n"+details["folder"]:""); });
             var address=Card(page,126); nasServer=TextAt(address,"Chưa kiểm tra chia sẻ. Tạo NAS hoặc bấm Kiểm tra NAS.\nNAS dùng mật khẩu tài khoản Windows; mã PIN đăng nhập không dùng được.",10,false,Theme.Muted,22,20); nasServer.AutoSize=false; nasServer.Size=new Size(730,89); nasServer.Anchor=AnchorStyles.Top|AnchorStyles.Left|AnchorStyles.Right;
-            var client=Card(page,426); TextAt(client,"Gắn ổ từ máy khác",15,true,Theme.Ink,22,18); TextAt(client,"Chọn máy Tailscale hoặc nhập IP 100.x.x.x của máy chứa ổ.",10,false,Theme.Muted,22,51);
+            var client=Card(page,550); TextAt(client,"Gắn ổ từ máy khác",15,true,Theme.Ink,22,18); TextAt(client,"Chọn máy Tailscale hoặc nhập IP 100.x.x.x của máy chứa ổ.",10,false,Theme.Muted,22,51);
             Field(client,"Máy chứa NAS",nasHost,90); Field(client,"Tên NAS từ xa",remoteShare,132); Field(client,"Ký tự ổ",nasLetter,174);
-            var clientButtons=Buttons(client,220);
-            Action(clientButtons,"Gắn / kết nối lại",true,async()=>{ var p=NasValues(); NasService.RemotePath(p.Host,p.RemoteShare); NasService.ValidateLetter(p.Letter); var state=await nas.Status(); if(!state.Ready) throw new Exception("Đăng nhập Tailscale trước khi gắn NAS."); status.Text="Đang kiểm tra máy NAS…"; await NasService.Probe(p.Host); IntPtr owner=Handle; await Task.Run(()=>NasService.Map(owner,p.Host,p.RemoteShare,p.Letter)); nas.Save(p); nas.RememberConnection(p); status.Text="Đã gắn NAS vào ổ "+p.Letter+":"; Process.Start("explorer.exe",Core.Quote(p.Letter+@":\")); });
+            Field(client,"Tài khoản máy chứa NAS",remoteUser,216); Field(client,"Mật khẩu NAS từ xa",remotePassword,258);
+            nasHost.TextChanged+=(a,b)=>{ if(!updatingHosts) { remotePassword.Clear(); remotePassword.UseSystemPasswordChar=true; } }; remoteShare.TextChanged+=(a,b)=>{ remotePassword.Clear(); remotePassword.UseSystemPasswordChar=true; }; remoteUser.TextChanged+=(a,b)=>{ remotePassword.Clear(); remotePassword.UseSystemPasswordChar=true; };
+            var clientButtons=Buttons(client,303);
+            Action(clientButtons,"Gắn / kết nối lại",true,async()=>{ var p=NasValues(); string enteredPassword=remotePassword.Text; NasService.RemotePath(p.Host,p.RemoteShare); NasService.ValidateLetter(p.Letter); var state=await nas.Status(); if(!state.Ready) throw new Exception("Đăng nhập Tailscale trước khi gắn NAS."); status.Text="Đang kiểm tra máy NAS…"; await NasService.Probe(p.Host); IntPtr owner=Handle; string warning; try { warning=await Task.Run(()=>nas.MapAndSave(owner,p,p.RemoteUser,enteredPassword)); } finally { remotePassword.Clear(); remotePassword.UseSystemPasswordChar=true; } remoteUser.Text=p.RemoteUser; nas.Save(p); nas.RememberConnection(p); status.Text=warning.Length==0?"Đã gắn NAS vào ổ "+p.Letter+": · Đã ghi nhớ đăng nhập":warning; Process.Start("explorer.exe",Core.Quote(p.Letter+@":\")); });
             Action(clientButtons,"Mở ổ NAS",false,async()=>{ var p=NasValues(); string expected=NasService.RemotePath(p.Host,p.RemoteShare); if(!string.Equals(await Task.Run(()=>NasService.MappedPath(p.Letter)),expected,StringComparison.OrdinalIgnoreCase)) throw new Exception("Gắn hoặc kết nối lại ổ NAS trước."); await NasService.Probe(p.Host); Process.Start("explorer.exe",Core.Quote(p.Letter+@":\")); });
             Action(clientButtons,"Ngắt ổ NAS",false,async()=>{ var p=NasValues(); await Task.Run(()=>NasService.Unmap(p.Host,p.RemoteShare,p.Letter)); status.Text="Đã ngắt ổ NAS"; });
-            TextAt(client,"Windows hỏi tài khoản/mật khẩu; bạn có thể lưu trong hộp thoại Windows.",9,false,Theme.Muted,22,280);
-            nasConnection=TextAt(client,"Tự kiểm tra và kết nối lại ổ NAS mỗi phút khi ứng dụng đang chạy.",10,false,Theme.Muted,22,310);
+            var loginButtons=Buttons(client,361);
+            Action(loginButtons,"Hiện mật khẩu đã lưu",false,()=>{ var p=NasValues(); var login=nas.LoadRemoteLogin(p.Host,p.RemoteShare); if(login==null || (p.RemoteUser.Length>0 && !string.Equals(login.User,p.RemoteUser,StringComparison.OrdinalIgnoreCase))) throw new Exception("Chưa lưu thông tin cho NAS/tài khoản này. Nhập một lần rồi bấm Gắn / kết nối lại."); remoteUser.Text=login.User; remotePassword.Text=login.Password; remotePassword.UseSystemPasswordChar=false; return Task.FromResult(0); });
+            Action(loginButtons,"Ẩn mật khẩu",false,()=>{ remotePassword.UseSystemPasswordChar=true; return Task.FromResult(0); });
+            Deactivate+=(a,b)=>remotePassword.UseSystemPasswordChar=true;
+            TextAt(client,"Nhập một lần. Khi gắn thành công, tool tự lưu đăng nhập có mã hóa.",9,false,Theme.Muted,22,418);
+            nasConnection=TextAt(client,"Tự kiểm tra và kết nối lại ổ NAS mỗi phút khi ứng dụng đang chạy.",10,false,Theme.Muted,22,450);
             nasConnection.AutoSize=false; nasConnection.Size=new Size(710,96); nasConnection.Anchor=AnchorStyles.Top|AnchorStyles.Left|AnchorStyles.Right;
             var note=Card(page,185); TextAt(note,"NAS hoạt động cùng Windows",12,true,Theme.Ink,22,18); TextAt(note,"Chia sẻ NAS vẫn hoạt động khi đóng tool. Không cần mở port trên router.\nGiữ máy chứa ổ bật; chế độ ngủ sẽ làm mất kết nối.\nỔ dữ liệu cần NTFS/ReFS. Google Drive tiếp tục hoạt động riêng.",10,false,Theme.Muted,22,50);
             Action(Buttons(note,122),"Chạy khi đăng xuất",false,async()=>{ await nas.Admin("Unattended",NasValues()); status.Text="Tailscale đã bật chạy khi đăng xuất Windows"; });

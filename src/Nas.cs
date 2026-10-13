@@ -16,7 +16,7 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 namespace GoogleNas {
     public class NasProfile {
-        public string Folder="", Share="GoogleNAS", User="nasuser", Host="", RemoteShare="GoogleNAS", Letter="N";
+        public string Folder="", Share="GoogleNAS", User="nasuser", Host="", RemoteShare="GoogleNAS", Letter="N", RemoteUser="";
         public bool ReadOnly=false, CreateUser=true;
     }
     public class NasNetwork {
@@ -24,6 +24,7 @@ namespace GoogleNas {
         public List<string> Peers=new List<string>();
         public bool Ready { get { return State=="Running" && NasService.IsTailIp(Address); } }
     }
+    public class NasLogin { public string User="", Password=""; }
     public class NasService {
         private readonly string home;
         private readonly NasConnectionMonitor monitor=new NasConnectionMonitor();
@@ -38,6 +39,9 @@ namespace GoogleNas {
         public void SavePassword(string user,string password) {
             ValidateUser(user); if(string.IsNullOrEmpty(password)) throw new Exception("Nhập mật khẩu NAS cần lưu.");
             var values=Passwords(); values[user.ToLowerInvariant()]=password;
+            WritePasswords(values);
+        }
+        private void WritePasswords(Dictionary<string,string> values) {
             byte[] clear=Encoding.UTF8.GetBytes(Core.Json.Serialize(values));
             try {
                 Directory.CreateDirectory(home);
@@ -46,6 +50,49 @@ namespace GoogleNas {
             } finally { Array.Clear(clear,0,clear.Length); }
         }
         public string LoadPassword(string user) { ValidateUser(user); string value; return Passwords().TryGetValue(user.ToLowerInvariant(),out value)?value:""; }
+        public static void ValidateRemoteUser(string user) {
+            if(string.IsNullOrWhiteSpace(user) || user.Length>513 || user.Any(char.IsControl)) throw new Exception("Nhập tài khoản NAS dạng TEN-MAY\\taikhoan hoặc taikhoan.");
+        }
+        private static string LoginKey(string host,string share) { return "remote:"+RemotePath(host,share).ToLowerInvariant(); }
+        public NasLogin LoadRemoteLogin(string host,string share) {
+            string value; return Passwords().TryGetValue(LoginKey(host,share),out value)?Core.Json.Deserialize<NasLogin>(value):null;
+        }
+        public void SaveRemoteLogin(string host,string share,string user,string password) {
+            ValidateRemoteUser(user); if(string.IsNullOrEmpty(password)) throw new Exception("Nhập mật khẩu NAS.");
+            var values=Passwords(); values[LoginKey(host,share)]=Core.Json.Serialize(new NasLogin { User=user,Password=password }); WritePasswords(values);
+        }
+        public static NasLogin ResolveLogin(NasLogin saved,string user,string password) {
+            if(!string.IsNullOrEmpty(password)) { ValidateRemoteUser(user); return new NasLogin { User=user,Password=password }; }
+            if(saved!=null && (string.IsNullOrWhiteSpace(user) || string.Equals(saved.User,user,StringComparison.OrdinalIgnoreCase))) return saved;
+            if(!string.IsNullOrWhiteSpace(user)) throw new Exception("Nhập mật khẩu cho tài khoản NAS mới. Mật khẩu đã lưu thuộc tài khoản khác.");
+            return null; // Existing Windows Credential Manager entries remain usable without another dialog.
+        }
+        internal string MapAndSave(IntPtr owner,NasProfile profile,string user,string password,Action<string,string> connect=null,Action<string,string,string> saveWindows=null) {
+            var login=ResolveLogin(LoadRemoteLogin(profile.Host,profile.RemoteShare),user,password);
+            if(connect==null) Map(owner,profile.Host,profile.RemoteShare,profile.Letter,login==null?null:login.User,login==null?null:login.Password);
+            else connect(login==null?null:login.User,login==null?null:login.Password);
+            if(login==null) return "";
+            profile.RemoteUser=login.User; string warning="";
+            try { SaveRemoteLogin(profile.Host,profile.RemoteShare,login.User,login.Password); } catch { warning="Đã gắn ổ nhưng chưa lưu được mật khẩu trong tool. Nhập lại khi kết nối lần sau."; }
+            try { if(saveWindows==null) SaveWindowsLogin(profile.Host,login.User,login.Password); else saveWindows(profile.Host,login.User,login.Password); } catch { warning+=" Windows chưa cho lưu thông tin đăng nhập; tự kết nối lại cần tool đang chạy."; }
+            return warning.Trim();
+        }
+        [StructLayout(LayoutKind.Sequential,CharSet=CharSet.Unicode)] private struct Credential {
+            public uint Flags,Type; public string TargetName,Comment;
+            public System.Runtime.InteropServices.ComTypes.FILETIME LastWritten;
+            public uint CredentialBlobSize; public IntPtr CredentialBlob; public uint Persist,AttributeCount;
+            public IntPtr Attributes; public string TargetAlias,UserName;
+        }
+        [DllImport("advapi32.dll",EntryPoint="CredWriteW",CharSet=CharSet.Unicode,SetLastError=true)] [return:MarshalAs(UnmanagedType.Bool)] private static extern bool CredWrite(ref Credential credential,uint flags);
+        private static void SaveWindowsLogin(string host,string user,string password) {
+            if(!IsTailIp(host)) throw new Exception("Địa chỉ NAS không hợp lệ."); ValidateRemoteUser(user);
+            byte[] bytes=Encoding.Unicode.GetBytes(password); IntPtr blob=Marshal.AllocHGlobal(bytes.Length);
+            try {
+                Marshal.Copy(bytes,0,blob,bytes.Length);
+                var credential=new Credential { Type=2,TargetName=host,UserName=user,CredentialBlobSize=(uint)bytes.Length,CredentialBlob=blob,Persist=2,Comment="CYAN NAS" };
+                if(!CredWrite(ref credential,0)) throw new Win32Exception(Marshal.GetLastWin32Error());
+            } finally { for(int i=0;i<bytes.Length;i++) Marshal.WriteByte(blob,i,0); Marshal.FreeHGlobal(blob); Array.Clear(bytes,0,bytes.Length); }
+        }
         public string Cli { get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),"Tailscale","tailscale.exe"); } }
         public bool Installed { get { return File.Exists(Cli); } }
         public NasProfile Load() { string path=Path.Combine(home,"nas.json"); return File.Exists(path)?Core.Json.Deserialize<NasProfile>(File.ReadAllText(path)):new NasProfile(); }
@@ -56,7 +103,7 @@ namespace GoogleNas {
         }
         public void RememberConnection(NasProfile profile) {
             var connections=Connections(); connections.RemoveAll(p=>p.Letter==profile.Letter);
-            connections.Add(new NasProfile { Host=profile.Host,RemoteShare=profile.RemoteShare,Letter=profile.Letter });
+            connections.Add(new NasProfile { Host=profile.Host,RemoteShare=profile.RemoteShare,Letter=profile.Letter,RemoteUser=profile.RemoteUser });
             string file=Path.Combine(home,"nas-connections.json"); File.WriteAllText(file+".new",Core.Json.Serialize(connections));
             if(File.Exists(file)) File.Replace(file+".new",file,null); else File.Move(file+".new",file);
         }
@@ -74,7 +121,8 @@ namespace GoogleNas {
                         if(!CanMaintain(MappedPath(p.Letter),expected)) continue;
                         var resource=new NetResource { Type=1,LocalName=p.Letter+":",RemoteName=expected };
                         // Cached Windows credentials only: no background dialog, force-unmap or file closure.
-                        int error=WNetAddConnection3(IntPtr.Zero,ref resource,null,null,0);
+                        var login=LoadRemoteLogin(p.Host,p.RemoteShare);
+                        int error=WNetAddConnection3(IntPtr.Zero,ref resource,login==null?null:login.Password,login==null?null:login.User,0);
                         if(error!=0) throw new Win32Exception(error,"Bấm Gắn / kết nối lại để kiểm tra tài khoản. "+new Win32Exception(error).Message);
                         if(!Directory.Exists(p.Letter+@":\")) throw new IOException("Windows chưa truy cập được thư mục NAS.");
                     }
@@ -157,13 +205,14 @@ namespace GoogleNas {
         public static void ValidateMappingTarget(string actual,string expected,bool drivePresent,string letter) {
             if((actual!=null && !actual.Equals(expected,StringComparison.OrdinalIgnoreCase)) || (actual==null && drivePresent)) throw new Exception("Ký tự ổ "+letter+": đang được sử dụng bởi ổ khác. Chọn ký tự khác.");
         }
-        public static void Map(IntPtr owner,string host,string share,string letter) {
+        public static void Map(IntPtr owner,string host,string share,string letter,string username=null,string password=null) {
             string path=RemotePath(host,share); ValidateLetter(letter);
             ValidateMappingTarget(MappedPath(letter),path,DriveInfo.GetDrives().Any(d=>d.Name.StartsWith(letter+":",StringComparison.OrdinalIgnoreCase)),letter);
             var resource=new NetResource { Type=1,LocalName=letter+":",RemoteName=path };
-            int error=WNetAddConnection3(owner,ref resource,null,null,1|8|16);
+            int error=WNetAddConnection3(owner,ref resource,password,username,1);
             if(error==1223) throw new Exception("Đã hủy kết nối NAS.");
             if(error==1219) throw new Exception("Máy này đang kết nối NAS bằng tài khoản khác. Ngắt kết nối đó trong Windows trước khi dùng tài khoản mới.");
+            if(error==86 || error==1326 || error==5) throw new Exception("Tài khoản/mật khẩu NAS chưa đúng hoặc chưa có quyền truy cập. Nhập thông tin đăng nhập ở mục Gắn ổ từ máy khác rồi thử lại.");
             if(error!=0) throw new Win32Exception(error,"Không gắn được NAS: "+new Win32Exception(error).Message);
         }
         public static void Unmap(string host,string share,string letter) {

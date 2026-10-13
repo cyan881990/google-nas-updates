@@ -31,6 +31,17 @@ class UiTests {
                     if(!password.UseSystemPasswordChar) throw new Exception("Hide password button failed.");
                     user.Text="otherfixture"; if(password.Text.Length!=0 || !password.UseSystemPasswordChar) throw new Exception("Changing NAS account must clear displayed password.");
                     Console.WriteLine("NAS password UI: save, reload, show, hide and account-change clearing passed.");
+                    var host=(ComboBox)typeof(MainForm).GetField("nasHost",fieldFlags).GetValue(form);
+                    var share=(TextBox)typeof(MainForm).GetField("remoteShare",fieldFlags).GetValue(form);
+                    var remoteAccount=(TextBox)typeof(MainForm).GetField("remoteUser",fieldFlags).GetValue(form);
+                    var remoteSecret=(TextBox)typeof(MainForm).GetField("remotePassword",fieldFlags).GetValue(form);
+                    new NasService(Path.Combine(root,"data")).SaveRemoteLogin("100.64.0.1","Data_1",@"NASPC\fixtureuser","Remote!FixtureSecret12");
+                    host.Text="100.64.0.1"; share.Text="Data_1"; remoteAccount.Text="";
+                    foreach(var c in All(form)) if(c is Button && c.Text=="Hiện mật khẩu đã lưu") ((Button)c).PerformClick();
+                    if(remoteAccount.Text!=@"NASPC\fixtureuser" || remoteSecret.Text!="Remote!FixtureSecret12" || remoteSecret.UseSystemPasswordChar) throw new Exception("Remote saved login UI failed.");
+                    host.Text="100.64.0.2";
+                    if(remoteSecret.Text.Length!=0 || !remoteSecret.UseSystemPasswordChar) throw new Exception("Changing remote host must clear and mask password.");
+                    Console.WriteLine("Remote login UI: restore saved account/password and clear on host change passed.");
                 }
                 // Simulate both logical geometry and font pixel size without changing Windows display settings.
                 var controls=All(form); var fonts=new Dictionary<Control,Font>(); foreach(var c in controls) fonts[c]=c.Font;

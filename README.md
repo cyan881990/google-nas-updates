@@ -1,4 +1,6 @@
-# CYAN NAS cho Windows — v1.2.8
+# CYAN NAS cho Windows — v1.2.9
+
+v1.2.9 thêm tài khoản/mật khẩu tại Gắn ổ từ máy khác. Nhập lần đầu rồi bấm Gắn / kết nối lại: chỉ khi kết nối thành công, thông tin được lưu bằng DPAPI trong nas-passwords.dat, gắn với đúng IP và tên share, đồng thời lưu credential cho IP đó trong Windows Credential Manager. Gắn lại và kiểm tra nền dùng thông tin đã lưu, không bật hộp hỏi mật khẩu. Có nút Hiện mật khẩu đã lưu. Đổi tài khoản hoặc mật khẩu trên máy chứa NAS thì cần nhập thông tin mới; tool không ép ngắt kết nối tài khoản khác. Nếu chính sách Windows không cho lưu credential, tool báo rõ và tiếp tục dùng bản mã hóa của tool khi ứng dụng chạy.
 
 v1.2.8 chuyển kiểm tra ổ mạng và kiểm tra cache sang nền, giới hạn chờ kiểm tra ổ để cửa sổ vẫn mở lại được khi ổ mất kết nối. Khôi phục biểu tượng khay khi Explorer khởi động lại. Thêm Hiện mật khẩu, Ẩn mật khẩu và Lưu mật khẩu cho tài khoản NAS. Khi tạo tài khoản mới thành công, mật khẩu được lưu tự động trong %LOCALAPPDATA%\GoogleNas\nas-passwords.dat bằng Windows DPAPI CurrentUser. Tệp nằm trong thư mục dữ liệu riêng có ACL, chỉ giải mã dưới cùng tài khoản Windows trên máy đã lưu. Tài khoản NAS đã tạo ở bản cũ cần nhập và lưu mật khẩu một lần; tool không đọc được mật khẩu gốc từ Windows. Lưu mật khẩu của tài khoản có sẵn không đổi mật khẩu Windows.
 
