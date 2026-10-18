@@ -28,7 +28,7 @@ class UiTests {
             if(c is Label && c.Parent is Card && ((Label)c).AutoSize && c.Right>c.Parent.ClientSize.Width-5) throw new Exception("Clipped card label: "+c.Text+" at "+scale+" / "+viewport);
         }
         var grid=(DashboardColumns)root.Controls[0];
-        if(viewport.Width==1920 && scale==1 && !grid.IsWide) throw new Exception("Wide PC screen must use two columns.");
+        if(form.ClientSize.Width>=1800 && scale==1 && !grid.IsWide) throw new Exception("Wide PC screen must use two columns: actual="+form.Size+" grid="+grid.Size);
         if(viewport.Width==1280 && scale==2 && grid.IsWide) throw new Exception("Compact high DPI screen must stack columns: grid="+grid.Size+" form="+form.Size+" root="+root.Size+" factor="+typeof(MainForm).GetProperty("UiScale",flags).GetValue(form,null));
         foreach(var c in All(form)) if(c.Name=="PageTitle" && c.Text!=new[]{"Google Drive","Ổ cứng thành NAS","Kết nối NAS","Mạng Tailscale","Cài đặt","Trợ giúp"}[page]) throw new Exception("Navigation title mismatch.");
     }
@@ -36,6 +36,11 @@ class UiTests {
         try {
             Application.EnableVisualStyles(); Application.SetCompatibleTextRenderingDefault(false);
             string root=Path.GetFullPath(args[0]); Directory.CreateDirectory(root);
+            using(var policy=new DashboardColumns(()=>1)) {
+                var a=new Card { Height=180 }; var b=new Card { Height=220 }; policy.Add(a,false); policy.Add(b,true);
+                policy.Width=1200; if(!policy.IsWide || b.Left<=a.Right || b.Top!=a.Top) throw new Exception("Wide desktop layout must use two separate columns.");
+                policy.Width=600; if(policy.IsWide || b.Left!=0 || b.Top<=a.Bottom) throw new Exception("Compact desktop layout must stack without overlap.");
+            }
             foreach(float scale in new[]{1f,1.25f,1.5f,2f}) using(var form=new MainForm(false,new Services(Path.Combine(root,"data")),true)) {
                 if(form.Text!="CYAN NAS") throw new Exception("Application title was not renamed.");
                 if(form.FormBorderStyle!=FormBorderStyle.None) throw new Exception("Apple design must not show the Windows border or caption.");
@@ -72,7 +77,8 @@ class UiTests {
                 foreach(var pair in fonts) pair.Key.Font=new Font(pair.Value.FontFamily,pair.Value.Size*scale,pair.Value.Style);
                 form.ResumeLayout(true); Application.DoEvents();
                 foreach(var c in controls) if(c is Label && c.Text=="CYAN NAS") { if(c.Right>c.Parent.ClientSize.Width) throw new Exception("Sidebar title clipped at "+scale); }
-                form.MinimumSize=Size.Empty;
+                // Hosted Windows desktops may have a 1024px maximum tracking size. Allow offscreen render viewports.
+                form.MinimumSize=Size.Empty; form.MaximumSize=new Size(8192,8192);
                 foreach(var viewport in new[]{new Size(1280,720),new Size(1366,768),new Size(1920,1080)}) {
                     form.Size=viewport; Application.DoEvents();
                     for(int page=0;page<6;page++) {

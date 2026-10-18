@@ -18,6 +18,7 @@ namespace GoogleNas {
         public string Repository = Core.UpdateRepository;
     }
     public static class Core {
+        // Desktop UI release; preserve the existing data and update identifiers during upgrades.
         public const string Version = "1.3.0";
         public const string UpdateRepository = "cyan881990/google-nas-updates";
         public static string EffectiveRepository(string legacyRepository) { return UpdateRepository.Length>0?UpdateRepository:(legacyRepository??""); }
