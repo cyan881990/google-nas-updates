@@ -67,7 +67,7 @@ if ($Test) {
     & $nativeUiTestExe (Join-Path $buildDir "native-ui-$appVersion") --native-dpi
     if ($LASTEXITCODE -ne 0) { throw 'Native DPI tests failed.' }
     $nasTestExe = Join-Path $buildDir 'NasTests.exe'
-    & $compiler /nologo /target:exe "/out:$nasTestExe" /reference:System.Security.dll /reference:System.Web.Extensions.dll $coreFile (Join-Path $projectRoot 'src\Nas.cs') (Join-Path $projectRoot 'tests\NasTests.cs')
+    & $compiler /nologo /target:exe "/out:$nasTestExe" /reference:System.Security.dll /reference:System.Web.Extensions.dll $coreFile (Join-Path $projectRoot 'src\Nas.cs') (Join-Path $projectRoot 'src\NasCatalog.cs') (Join-Path $projectRoot 'tests\NasTests.cs')
     if ($LASTEXITCODE -ne 0) { throw 'NAS tests compilation failed.' }
     & $nasTestExe (Join-Path $buildDir ('nas-tests-'+[Guid]::NewGuid().ToString('N')))
     if ($LASTEXITCODE -ne 0) { throw 'NAS tests failed.' }

@@ -3,11 +3,48 @@ using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
+using System.Collections.Concurrent;
+using System.Linq;
 using GoogleNas;
 class NasTests {
     static int count;
     static void Check(bool ok,string name) { count++; if(!ok) throw new Exception(name); }
     static void Reject(Action test,string name) { bool rejected=false; try { test(); } catch { rejected=true; } Check(rejected,name); }
+    static async Task CatalogTests(string root) {
+        Directory.CreateDirectory(root); var maps=new ConcurrentDictionary<string,string>(); var attempts=new ConcurrentDictionary<string,int>();
+        var delayed=new TaskCompletionSource<bool>(); int slowProbes=0;
+        var operations=new NasRestoreOperations {
+            Mapping=letter=>{ string path; return maps.TryGetValue(letter,out path)?path:null; },Occupied=letter=>maps.ContainsKey(letter),Ready=path=>maps.ContainsKey(path.Substring(0,1)),
+            Probe=host=>host=="100.64.0.8"?DelayProbe(delayed,()=>System.Threading.Interlocked.Increment(ref slowProbes)):Task.FromResult(0),
+            Connect=(p,login)=>{ attempts.AddOrUpdate(p.Letter,1,(key,old)=>old+1); if(p.Letter=="T") throw NasService.ConnectionError(1326,"fixture"); maps[p.Letter]=NasService.RemotePath(p.Host,p.RemoteShare); }
+        };
+        var service=new NasService(root,operations);
+        service.Save(new NasProfile { Folder=@"E:\Data",Share="FirstNas",User="nasuser" });
+        Check(service.LocalShares().Count==1,"Legacy local share migrates without deleting it");
+        service.RememberShare(new NasProfile { Folder=@"F:\Archive",Share="SecondNas",User="nasuser" });
+        service.RememberShare(new NasProfile { Folder=@"E:\Updated",Share="FirstNas",User="nasuser" });
+        Check(service.LocalShares().Count==2 && service.LocalShares().First(p=>p.Share=="FirstNas").Folder==@"E:\Updated","Multiple local shares update by name without losing another disk");
+        service.RememberConnection(new NasProfile { Host="100.64.0.8",RemoteShare="Slow",Letter="N" });
+        service.RememberConnection(new NasProfile { Host="100.64.0.2",RemoteShare="Fast",Letter="P" });
+        maps["R"]=@"\\100.64.0.99\Other"; service.RememberConnection(new NasProfile { Host="100.64.0.2",RemoteShare="Conflict",Letter="R" });
+        service.RememberConnection(new NasProfile { Host="100.64.0.2",RemoteShare="Paused",Letter="S",AutoConnect=false });
+        service.RememberConnection(new NasProfile { Host="100.64.0.9",RemoteShare="Auth",Letter="T" });
+        await service.MaintainConnections(); await Task.Delay(100);
+        Check(service.ConnectionState("P").State=="Connected" && maps["P"]==@"\\100.64.0.2\Fast","Startup recreates absent free mapping while another NAS is slow");
+        Reject(()=>service.RememberConnection(new NasProfile { Host="100.64.0.3",RemoteShare="Different",Letter="P" }),"Saving new NAS cannot silently replace another saved drive letter");
+        Check(service.ConnectionState("R").State=="Conflict" && maps["R"]==@"\\100.64.0.99\Other","Auto restore never takes a letter belonging to another share");
+        Check(!attempts.ContainsKey("S"),"Paused configuration never maps at startup");
+        Check(!service.Connections().First(p=>p.Letter=="T").AutoConnect && service.ConnectionState("T").State=="AuthRequired","Rejected credentials pause automatic attempts to prevent account lockout");
+        await service.MaintainConnections(); Check(slowProbes==1 && attempts["T"]==1,"Stalled NAS has a single worker; bad password is not retried");
+        Check(service.ConnectionState("T").State=="AuthRequired","Subsequent status polls retain the actionable authentication error");
+        service.PauseConnection("N"); delayed.SetResult(true); await Task.Delay(100); await service.MaintainConnections();
+        Check(!attempts.ContainsKey("N"),"Pause during probe prevents late remount");
+        Check(new NasService(root).Connections().First(p=>p.Letter=="N").AutoConnect==false,"Manual pause survives application restart");
+        Check(NasService.CanRestore(null,@"\\100.64.0.2\Fast",false) && !NasService.CanRestore(null,@"\\100.64.0.2\Fast",true),"Free missing mappings restore; occupied local disks never do");
+        service.ForgetShare("FirstNas"); Check(service.LocalShares().Count==1,"Removing one saved local NAS preserves the other disk");
+        service.ForgetConnection("P"); Check(service.Connections().Count==4,"Removing one remote configuration preserves others");
+    }
+    static async Task DelayProbe(TaskCompletionSource<bool> pending,Action entered) { entered(); await pending.Task; }
     static int Main(string[] args) {
         try {
             Check(NasService.IsTailIp("100.64.0.1") && NasService.IsTailIp("100.127.255.254"),"Tailnet boundaries");
@@ -43,6 +80,7 @@ class NasTests {
             Check(network.Ready && network.Address=="100.100.0.1" && network.Peers.Count==1,"Status and peer parsing");
             Check(!NasService.ParseNetwork("{\"BackendState\":\"Stopped\",\"TailscaleIPs\":[\"100.100.0.1\"]}").Ready,"Stopped cannot share");
             Directory.CreateDirectory(args[0]); var service=new NasService(args[0]); var profile=new NasProfile { Host="100.64.0.1",Share="Data_1",CreateUser=false }; service.Save(profile); var saved=service.Load(); Check(saved.Host==profile.Host && saved.Share==profile.Share && !saved.CreateUser,"Profile roundtrip");
+            CatalogTests(Path.Combine(args[0],"catalog")).GetAwaiter().GetResult();
             Check(!File.ReadAllText(Path.Combine(args[0],"nas.json")).Contains("Password"),"Profile has no passwords");
             service.SavePassword("nasuser","Fixture!PasswordSecret12");
             service.SavePassword("otheruser","Other!SecretPassword12");
@@ -61,18 +99,6 @@ class NasTests {
             Reject(()=>NasService.ResolveLogin(restarted.LoadRemoteLogin("100.64.0.1","Data_1"),@"NASPC\otheruser",""),"Changing account cannot reuse another password");
             Reject(()=>NasService.ValidateRemoteUser("user\nname"),"Remote account rejects control characters");
             Check(NasService.ResolveLogin(null,"","")==null,"Legacy Windows credential entry can be used without tool password");
-            int prompts=0; Func<NasLogin> prompt=()=>{ prompts++; return new NasLogin { User=@"NASPC\nasuser",Password="Windows!Prompt12" }; };
-            var chosen=NasService.ChooseLogin(null,"","",false,prompt);
-            Check(prompts==1 && chosen.Password=="Windows!Prompt12","First connection collects credentials through Windows UI");
-            chosen=NasService.ChooseLogin(chosen,"","",false,prompt);
-            Check(prompts==1 && chosen.User==@"NASPC\nasuser","Remembered connection never prompts again");
-            chosen=NasService.ChooseLogin(chosen,chosen.User,"",true,prompt);
-            Check(prompts==2,"Explicit login again always opens Windows UI");
-            chosen=NasService.ChooseLogin(null,"nasuser","Manual!Password12",false,prompt);
-            Check(prompts==2 && chosen.Password=="Manual!Password12","Inline credentials remain available without a redundant prompt");
-            Check(NasService.ChooseLogin(null,"","",true,()=>null)==null,"Cancel Windows login leaves mapping and storage unchanged");
-            NasService.ChooseLogin(new NasLogin { User="old",Password="Old!Password12" },"new","",false,prompt);
-            Check(prompts==3,"Changing user without a password prompts instead of silently reusing old credentials");
             warning=restarted.MapAndSave(IntPtr.Zero,remoteProfile,"","",(user,password)=>{},(host,user,password)=> { throw new Exception("Credential Manager policy denies storage"); });
             Check(warning.Contains("Windows") && restarted.LoadRemoteLogin("100.64.0.1","Data_1").Password=="Remote!Password12","Windows storage failure preserves encrypted tool fallback");
             var protectedPassword=File.ReadAllBytes(Path.Combine(args[0],"nas-passwords.dat"));

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 namespace GoogleNas {
@@ -136,14 +137,15 @@ namespace GoogleNas {
         }
         private Label Metric(TableLayoutPanel grid,int col,string name) { var p=new Panel { Dock=DockStyle.Fill,Margin=Padding.Empty }; grid.Controls.Add(p,col,0); TextAt(p,name,7.5f,true,Theme.Muted,0,0); return TextAt(p,"—",20,true,Theme.Ink,0,25); }
         private void BuildLocalPage() {
-            var grid=Columns(Page()); var source=Section(grid,false,"1. Chọn dữ liệu chia sẻ","Chọn ổ dữ liệu hoặc thư mục trên chính máy này.",314);
+            var grid=Columns(Page()); BuildNasList(grid,true); var source=Section(grid,false,"1. Dữ liệu chia sẻ","Chọn một NAS trong danh sách hoặc bấm Chia sẻ mới.",314);
             InlineField(source,"Ổ / thư mục cần chia sẻ",nasFolder,94,"Chọn…",()=>{ using(var picker=new FolderBrowserDialog { Description="Chọn ổ dữ liệu hoặc thư mục cần chia sẻ",ShowNewFolderButton=false }) if(picker.ShowDialog(this)==DialogResult.OK) nasFolder.Text=picker.SelectedPath; return Task.FromResult(0); },"BrowseNas");
             Field(source,"Tên NAS hiển thị trên mạng",nasShare,166); CheckAt(source,nasReadOnly,238); Paragraph(source,"Bật chỉ đọc nếu bạn không muốn thiết bị khác sửa hoặc xóa file.",22,270,40);
-            var address=Section(grid,false,"Trạng thái chia sẻ","Sao chép tài khoản Windows chính xác để đăng nhập từ máy khác.",282);
+            var address=Section(grid,false,"Trạng thái chia sẻ","Sao chép tài khoản Windows chính xác để đăng nhập từ máy khác.",336);
             nasServer=Paragraph(address,"NAS đang quản lý: "+managedShare+"\nBấm Kiểm tra để xem trạng thái chia sẻ.",22,91,70); nasServer.ForeColor=Theme.Ink;
-            Action(Buttons(address,172),"Kiểm tra",false,async()=>{ var result=await nas.Admin("Inspect",ManagedNasValues()); var details=(Dictionary<string,object>)result["details"]; nasServer.Text=managedShare+" · "+Convert.ToString(details["message"])+(details.ContainsKey("folder")?"\n"+details["folder"]:"")+"\nTài khoản cấu hình: "+NasService.LocalAccount(nasUser.Text.Trim()); },"InspectNas");
-            Action((FlowLayoutPanel)address.Controls[address.Controls.Count-1],"Dừng NAS",false,async()=>{ var result=await nas.Admin("Remove",ManagedNasValues()); nasServer.Text=managedShare+" · "+Convert.ToString(((Dictionary<string,object>)result["details"])["message"]); },"StopNas",true);
+            Action(Buttons(address,172),"Kiểm tra",false,async()=>{ var p=ManagedNasValues(); var result=await nas.Admin("Inspect",p); var details=(Dictionary<string,object>)result["details"]; if(details.ContainsKey("folder")) { p.Folder=Convert.ToString(details["folder"]); nasFolder.Text=p.Folder; nas.RememberShare(p); } nasServer.Text=managedShare+" · "+Convert.ToString(details["message"])+(details.ContainsKey("folder")?"\n"+details["folder"]:"")+(string.IsNullOrWhiteSpace(p.User)?"\nChọn tài khoản NAS ở bên phải.":"\nTài khoản cấu hình: "+NasService.LocalAccount(p.User)); await RefreshNasCatalogs(); },"InspectNas");
+            stopNasButton=Action((FlowLayoutPanel)address.Controls[address.Controls.Count-1],"Dừng NAS",false,StopLocalShare,"StopNas",true);
             Action(Buttons(address,224),"Sao chép tài khoản",false,()=>{ string account=NasService.LocalAccount(nasUser.Text.Trim()); Clipboard.SetText(account); status.Text="Đã sao chép tài khoản Windows: "+account; return Task.FromResult(0); },"CopyNasAccount");
+            Action(Buttons(address,278),"Bỏ lưu NAS",false,async()=>{ if(ShareState(managedShare).State!="Stopped") throw new Exception("Dừng đúng NAS đang chọn trước khi bỏ cấu hình khỏi danh sách."); nas.ForgetShare(managedShare); await RefreshNasCatalogs(); nasServer.Text="Đã bỏ cấu hình NAS khỏi danh sách. File và tài khoản Windows vẫn được giữ."; },"ForgetLocalNas");
             var access=Section(grid,true,"2. Tài khoản truy cập","Kiểm tra mật khẩu Windows của tài khoản trên chính máy này.",516);
             Field(access,"Tài khoản Windows / NAS",nasUser,94);
             serverReveal=InlineField(access,"Mật khẩu NAS",nasPassword,166,"Hiện",()=>{ if(nasPassword.UseSystemPasswordChar) { if(nasPassword.Text.Length==0) nasPassword.Text=nas.LoadPassword(nasUser.Text.Trim()); if(nasPassword.Text.Length==0) throw new Exception("Chưa lưu mật khẩu. Nhập mật khẩu hiện tại rồi bấm Lưu mật khẩu."); nasPassword.UseSystemPasswordChar=false; } else nasPassword.UseSystemPasswordChar=true; serverReveal.Text=nasPassword.UseSystemPasswordChar?"Hiện":"Ẩn"; return Task.FromResult(0); },"ServerReveal");
@@ -152,7 +154,8 @@ namespace GoogleNas {
             Action(passwordActions,"Kiểm tra",false,async()=>{ string user=nasUser.Text.Trim(); string password=nasPassword.Text; if(password.Length==0) password=nas.LoadPassword(user); HidePasswords(); await Task.Run(()=>NasService.CheckLocalPassword(user,password)); status.Text="Windows chấp nhận mật khẩu cho "+NasService.LocalAccount(user)+". Nếu máy khác vẫn lỗi, kiểm tra quyền SMB/NTFS và dùng tài khoản được sao chép."; },"TestNasPassword");
             var reset=Action(passwordActions,"Đặt lại",false,ResetNasPassword,"ResetNasPassword"); tips.SetToolTip(reset,"Đặt mật khẩu Windows mới cho tài khoản NAS riêng do tool tạo; không cần dừng chia sẻ.");
             CheckAt(access,nasCreateUser,353); Paragraph(access,"Lưu chỉ ghi nhớ trong tool. Muốn đổi mật khẩu Windows: nhập mật khẩu mới ở trên, bấm Đặt lại. Cần ít nhất 12 ký tự, đủ hoa, thường, số, ký hiệu.",22,390,54);
-            Action(Buttons(access,456),"Bật chia sẻ NAS",true,CreateLocalNas,"CreateNas");
+            createNasButton=Action(Buttons(access,456),"Bật chia sẻ NAS",true,CreateLocalNas,"CreateNas");
+            nasShare.TextChanged+=(a,b)=>{ UpdateNasActions(); QueueNasCatalogRefresh(); };
             nasUser.TextChanged+=(a,b)=>{ nasPassword.Clear(); HidePasswords(); };
             var help=Section(grid,true,"NAS qua Internet","Cài và đăng nhập Tailscale trên cả hai máy. Máy chứa ổ cần bật và không ở chế độ ngủ.",171);
             Action(Buttons(help,111),"Thiết lập Tailscale",false,()=>{ SelectPage(3); return Task.FromResult(0); },"LocalNetwork");
@@ -163,42 +166,42 @@ namespace GoogleNas {
             if(password.Length<12 || !System.Text.RegularExpressions.Regex.IsMatch(password,"[A-Z]") || !System.Text.RegularExpressions.Regex.IsMatch(password,"[a-z]") || !System.Text.RegularExpressions.Regex.IsMatch(password,"[0-9]") || !System.Text.RegularExpressions.Regex.IsMatch(password,"[^A-Za-z0-9]")) throw new Exception("Nhập mật khẩu mới từ 12 ký tự, có chữ hoa, chữ thường, số và ký hiệu.");
             HidePasswords();
             if(MessageBox.Show(this,"Đặt mật khẩu Windows mới cho "+NasService.LocalAccount(p.User)+"?\nChỉ áp dụng tài khoản NAS riêng do tool tạo. Các máy khác cần nhập mật khẩu mới khi kết nối lại; phiên đang mở không bị ngắt.","Đặt lại mật khẩu NAS",MessageBoxButtons.YesNo,MessageBoxIcon.Question)!=DialogResult.Yes) return;
-            try { await nas.Admin("SetNasPassword",p,password); string warning=""; try { nas.SavePassword(p.User,password); } catch { warning=" Chưa lưu được trong tool; hãy nhập lại và bấm Lưu mật khẩu."; } nasServer.Text="Đã đổi mật khẩu Windows cho "+NasService.LocalAccount(p.User)+".\nKhông cần dừng hoặc tạo lại NAS."; status.Text="Đã đổi mật khẩu NAS. Máy khác chọn Đăng nhập lại và dùng mật khẩu mới."+warning; }
+            try { await nas.Admin("SetNasPassword",p,password); string warning=""; try { nas.SavePassword(p.User,password); } catch { warning=" Chưa lưu được trong tool; hãy nhập lại và bấm Lưu mật khẩu."; } nasServer.Text="Đã đổi mật khẩu Windows cho "+NasService.LocalAccount(p.User)+".\nKhông cần dừng hoặc tạo lại NAS."; status.Text="Đã đổi mật khẩu NAS. Máy khác nhập mật khẩu mới trong app, lưu và gắn lại."+warning; }
             finally { nasPassword.Clear(); HidePasswords(); }
         }
         private async Task CreateLocalNas() {
             var p=NasValues(); NasService.ValidateShare(p.Share); NasService.ValidateUser(p.User); nasServer.Text="Đang tạo NAS. Chấp nhận quyền Windows nếu xuất hiện…";
             Dictionary<string,object> result; string enteredPassword=nasPassword.Text; bool createdUser=p.CreateUser; string warning="";
             try { result=await nas.Admin("Create",p,enteredPassword); if(createdUser) { try { nas.SavePassword(p.User,enteredPassword); } catch { warning="\nChưa lưu được mật khẩu; hãy nhập lại và bấm Lưu mật khẩu."; } } } finally { nasPassword.Clear(); HidePasswords(); }
-            var details=(Dictionary<string,object>)result["details"]; nasCreateUser.Checked=false; p.CreateUser=false; nas.Save(p); managedShare=p.Share;
+            var details=(Dictionary<string,object>)result["details"]; nasCreateUser.Checked=false; p.CreateUser=false; bool first=nas.LocalShares().Count==0; nas.Save(p); managedShare=p.Share; nas.RememberShare(p); localShareStates[p.Share]=new NasItemState { Key=p.Share,State="Enabled",Message="Đang chia sẻ" }; if(first && !nasPreview) { service.SetStartup(true); startup.Checked=true; } await RefreshNasCatalogs(); foreach(var item in localNasList.Items) if(((NasListEntry)item).Profile.Share==p.Share) { localNasList.SelectedItem=item; break; }
             nasServer.Text=details["path"]+"\nTài khoản: "+details["account"]+"\n"+(p.ReadOnly?"Chỉ đọc":"Đọc và ghi")+warning; status.Text="Đã tạo NAS. Dùng địa chỉ và tài khoản ở mục Trạng thái chia sẻ.";
         }
         private void BuildRemotePage() {
-            var grid=Columns(Page()); var target=Section(grid,false,"1. Chọn NAS từ máy khác","Nhập IP Tailscale và tên NAS được chia sẻ từ máy chứa ổ.",371);
+            var grid=Columns(Page()); BuildNasList(grid,false); var target=Section(grid,false,"1. Kết nối ổ NAS","Chọn ổ đã lưu ở trên hoặc nhập cấu hình để thêm ổ mới.",371);
             Field(target,"Máy chứa NAS · IP Tailscale",nasHost,94); Field(target,"Tên NAS từ xa",remoteShare,166); Field(target,"Ký tự ổ trên máy này",nasLetter,238);
-            Action(Buttons(target,310),"Gắn ổ NAS",true,MountRemoteNas,"MountRemote"); Action((FlowLayoutPanel)target.Controls[target.Controls.Count-1],"Mở ổ NAS",false,async()=>{ var p=NasValues(); string expected=NasService.RemotePath(p.Host,p.RemoteShare); if(!string.Equals(await Task.Run(()=>NasService.MappedPath(p.Letter)),expected,StringComparison.OrdinalIgnoreCase)) throw new Exception("Gắn hoặc kết nối lại ổ NAS trước."); await NasService.Probe(p.Host); Process.Start("explorer.exe",Core.Quote(p.Letter+@":\")); },"OpenRemote");
+            remoteMountButton=Action(Buttons(target,310),"Gắn ổ NAS",true,MountRemoteNas,"MountRemote"); remoteOpenButton=Action((FlowLayoutPanel)target.Controls[target.Controls.Count-1],"Mở ổ NAS",false,async()=>{ var p=NasValues(); string expected=NasService.RemotePath(p.Host,p.RemoteShare); if(!string.Equals(await Task.Run(()=>NasService.MappedPath(p.Letter)),expected,StringComparison.OrdinalIgnoreCase)) throw new Exception("Gắn hoặc kết nối lại ổ NAS trước."); await NasService.Probe(p.Host); Process.Start("explorer.exe",Core.Quote(p.Letter+@":\")); },"OpenRemote");
             var health=Section(grid,false,"Theo dõi kết nối","Tự kiểm tra mỗi phút khi CYAN NAS đang chạy.",218);
             nasConnection=Paragraph(health,"Thông tin kết nối sẽ hiển thị sau khi gắn ổ NAS.",22,91,63); nasConnection.ForeColor=Theme.Ink;
-            Action(Buttons(health,162),"Ngắt ổ NAS",false,async()=>{ var p=NasValues(); await Task.Run(()=>NasService.Unmap(p.Host,p.RemoteShare,p.Letter)); nasConnection.Text="Đã ngắt ổ NAS "+p.Letter+":"; status.Text=nasConnection.Text; },"DisconnectRemote",true);
-            var credentials=Section(grid,true,"2. Đăng nhập NAS","Lần đầu có hộp đăng nhập Windows. Dùng tài khoản của máy chứa ổ.",408);
+            Action(Buttons(health,162),"Bỏ lưu ổ NAS",false,async()=>{ var p=NasValues(); var saved=nas.Connections().FirstOrDefault(x=>x.Letter==p.Letter && x.Host==p.Host && x.RemoteShare==p.RemoteShare); if(saved==null) throw new Exception("Chọn đúng ổ trong danh sách đã lưu."); await nas.DisconnectSaved(saved,true); await RefreshNasCatalogs(false); nasConnection.Text="Đã bỏ lưu ổ NAS; không tự gắn lại."; },"ForgetRemoteNas");
+            var credentials=Section(grid,true,"2. Đăng nhập đã lưu","Nhập tài khoản một lần. Thông tin được lưu mã hóa trên máy này.",376);
             Field(credentials,"Tài khoản máy chứa NAS",remoteUser,94);
             clientReveal=InlineField(credentials,"Mật khẩu NAS từ xa",remotePassword,166,"Hiện",()=>{ if(!remotePassword.UseSystemPasswordChar) { remotePassword.UseSystemPasswordChar=true; clientReveal.Text="Hiện"; return Task.FromResult(0); } var p=NasValues(); if(remotePassword.Text.Length==0) { var login=nas.LoadRemoteLogin(p.Host,p.RemoteShare); if(login==null || (p.RemoteUser.Length>0 && !string.Equals(login.User,p.RemoteUser,StringComparison.OrdinalIgnoreCase))) throw new Exception("Chưa lưu đăng nhập cho NAS này. Nhập thông tin rồi bấm Gắn / kết nối lại."); remoteUser.Text=login.User; remotePassword.Text=login.Password; } remotePassword.UseSystemPasswordChar=false; clientReveal.Text="Ẩn"; return Task.FromResult(0); },"ClientReveal");
             Paragraph(credentials,"Chỉ cần nhập lần đầu. Khi gắn thành công, thông tin đăng nhập được tự lưu có mã hóa để kết nối lại.",22,245,66);
-            Action(Buttons(credentials,346),"Đăng nhập lại",false,()=>MountRemoteNas(true),"WindowsLogin");
+            Action(Buttons(credentials,316),"Lưu đăng nhập",false,SaveRemoteLoginConfiguration,"SaveRemoteLogin");
             nasHost.TextChanged+=(a,b)=>{ if(!updatingHosts) ClearRemotePassword(); }; remoteShare.TextChanged+=(a,b)=>ClearRemotePassword(); remoteUser.TextChanged+=(a,b)=>ClearRemotePassword();
+            nasLetter.SelectedIndexChanged+=(a,b)=>UpdateNasActions();
             var help=Section(grid,true,"Lưu ý khi đăng nhập","Hai máy cần đăng nhập cùng mạng Tailscale. Dùng mật khẩu Windows / NAS, không dùng mã PIN đăng nhập.",176);
             Action(Buttons(help,116),"Kiểm tra Tailscale",false,()=>{ SelectPage(3); return Task.FromResult(0); },"RemoteNetwork");
         }
-        private void ClearRemotePassword() { remotePassword.Clear(); remotePassword.UseSystemPasswordChar=true; if(clientReveal!=null) clientReveal.Text="Hiện"; }
-        private Task MountRemoteNas() { return MountRemoteNas(false); }
-        private async Task MountRemoteNas(bool promptAgain) {
-            var p=NasValues(); string password=remotePassword.Text; NasService.RemotePath(p.Host,p.RemoteShare); NasService.ValidateLetter(p.Letter);
+        private void ClearRemotePassword() { remotePassword.Clear(); remotePassword.UseSystemPasswordChar=true; if(clientReveal!=null) clientReveal.Text="Hiện"; UpdateNasActions(); }
+        private async Task MountRemoteNas() {
+            var p=NasValues(); string password=remotePassword.Text; nas.ValidateSavedTarget(p);
             if(!(await nas.Status()).Ready) throw new Exception("Vào Mạng Tailscale và đăng nhập trước khi gắn NAS.");
             status.Text="Đang kiểm tra máy NAS…"; await NasService.Probe(p.Host); IntPtr owner=Handle; string warning;
-            var login=NasService.ChooseLogin(promptAgain?null:nas.LoadRemoteLogin(p.Host,p.RemoteShare),p.RemoteUser,password,promptAgain,()=>NasService.PromptLogin(owner,p.Host,p.RemoteShare,p.RemoteUser));
-            if(login==null) { status.Text="Đã hủy đăng nhập Windows; chưa thay đổi thông tin đã lưu."; return; }
+            var login=NasService.ResolveLogin(string.IsNullOrEmpty(password)?nas.LoadRemoteLogin(p.Host,p.RemoteShare):null,p.RemoteUser,password);
+            if(login==null) throw new Exception("Nhập tài khoản và mật khẩu ở phần Đăng nhập đã lưu, sau đó bấm Gắn ổ NAS.");
             try { warning=await Task.Run(()=>nas.MapAndSave(owner,p,login.User,login.Password)); } finally { ClearRemotePassword(); }
-            remoteUser.Text=p.RemoteUser; var saved=nas.Load(); saved.Host=p.Host; saved.RemoteShare=p.RemoteShare; saved.Letter=p.Letter; saved.RemoteUser=p.RemoteUser; nas.Save(saved); nas.RememberConnection(p); nasConnection.Text="Đã gắn "+p.Letter+": → "+NasService.RemotePath(p.Host,p.RemoteShare);
+            remoteUser.Text=p.RemoteUser; bool first=nas.Connections().Count==0; var saved=nas.Load(); saved.Host=p.Host; saved.RemoteShare=p.RemoteShare; saved.Letter=p.Letter; saved.RemoteUser=p.RemoteUser; nas.Save(saved); nas.RememberConnection(p); nas.MarkConnected(p.Letter); if(first && !nasPreview) { service.SetStartup(true); startup.Checked=true; } await RefreshNasCatalogs(false); nasConnection.Text="Đã gắn "+p.Letter+": → "+NasService.RemotePath(p.Host,p.RemoteShare);
             status.Text=warning.Length==0?"Đã gắn ổ NAS "+p.Letter+": · Đã ghi nhớ đăng nhập.":warning; Process.Start("explorer.exe",Core.Quote(p.Letter+@":\"));
         }
         private void BuildNetworkPage() {
@@ -238,20 +241,22 @@ namespace GoogleNas {
         }
     }
     public class DashboardColumns : Panel {
-        private readonly List<Control> left=new List<Control>(),right=new List<Control>();
+        private readonly List<Control> left=new List<Control>(),right=new List<Control>(),full=new List<Control>();
         private readonly Func<float> scale;
         private bool laying;
         public bool IsWide { get; private set; }
         public DashboardColumns(Func<float> factor) { scale=factor; BackColor=Theme.Background; DoubleBuffered=true; }
         public void Add(Control card,bool rightColumn) { (rightColumn?right:left).Add(card); Controls.Add(card); card.TabIndex=rightColumn?right.Count*2-1:left.Count*2-2; card.SizeChanged+=(a,b)=>Reflow(); Reflow(); }
+        public void AddFull(Control card) { full.Add(card); Controls.Add(card); card.SizeChanged+=(a,b)=>Reflow(); Reflow(); }
         protected override void OnSizeChanged(EventArgs e) { base.OnSizeChanged(e); Reflow(); }
         protected override void OnLayout(LayoutEventArgs e) { base.OnLayout(e); Reflow(); }
         private int Arrange(List<Control> cards,int x,int y,int width,int gap) { int start=y; foreach(var card in cards) { card.SetBounds(x,y,Math.Max(1,width),card.Height); y+=card.Height+gap; } return cards.Count==0?0:y-start-gap; }
         private void Reflow() {
             if(laying || scale==null || Theme.LayoutScaling) return; laying=true;
             try { int gap=(int)Math.Round(18*scale()); IsWide=Width>=840*scale();
-                int w=IsWide?(Width-gap)/2:Width; int lh=Arrange(left,0,0,w,gap); int rh=Arrange(right,IsWide?w+gap:0,IsWide?0:lh+gap,IsWide?Width-w-gap:Width,gap);
-                Height=IsWide?Math.Max(lh,rh):lh+(right.Count>0?gap+rh:0);
+                int top=Arrange(full,0,0,Width,gap)+(full.Count>0?gap:0);
+                int w=IsWide?(Width-gap)/2:Width; int lh=Arrange(left,0,top,w,gap); int rh=Arrange(right,IsWide?w+gap:0,IsWide?top:top+lh+gap,IsWide?Width-w-gap:Width,gap);
+                Height=top+(IsWide?Math.Max(lh,rh):lh+(right.Count>0?gap+rh:0));
             } finally { laying=false; }
         }
     }

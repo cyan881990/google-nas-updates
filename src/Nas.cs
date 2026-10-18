@@ -17,7 +17,7 @@ using System.Threading.Tasks;
 namespace GoogleNas {
     public class NasProfile {
         public string Folder="", Share="CYANNAS", User="nasuser", Host="", RemoteShare="CYANNAS", Letter="N", RemoteUser="";
-        public bool ReadOnly=false, CreateUser=true;
+        public bool ReadOnly=false, CreateUser=true, AutoConnect=true;
     }
     public class NasNetwork {
         public string State="", Address="", AuthUrl="";
@@ -25,10 +25,11 @@ namespace GoogleNas {
         public bool Ready { get { return State=="Running" && NasService.IsTailIp(Address); } }
     }
     public class NasLogin { public string User="", Password=""; }
-    public class NasService {
+    public partial class NasService {
         private readonly string home;
-        private readonly NasConnectionMonitor monitor=new NasConnectionMonitor();
-        public NasService(string directory) { home=directory; }
+
+        public NasService(string directory) : this(directory,null) { }
+        internal NasService(string directory,NasRestoreOperations operations) { home=directory; restore=operations??NativeRestoreOperations(); }
         private string PasswordFile { get { return Path.Combine(home,"nas-passwords.dat"); } }
         private Dictionary<string,string> Passwords() {
             if(!File.Exists(PasswordFile)) return new Dictionary<string,string>();
@@ -79,6 +80,7 @@ namespace GoogleNas {
                 case 1385: help="Tài khoản không được phép đăng nhập qua mạng trên máy chứa ổ. Kiểm tra quyền Access this computer from the network và Deny access to this computer from the network."; break;
                 case 1327: help="Windows chặn đăng nhập do giới hạn tài khoản. Kiểm tra mật khẩu không trống và chính sách tài khoản trên máy chứa ổ."; break;
                 case 67: help="Không tìm thấy tên chia sẻ. Kiểm tra Tên NAS từ xa trên máy chứa ổ."; break;
+                case 85: help="Ký tự ổ đã được gắn trong Windows. Nếu đang đổi đăng nhập, đóng file và bấm Tạm ngắt trước khi Gắn lại."; break;
                 case 53: case 64: help="Không truy cập được máy NAS. Kiểm tra máy chứa ổ đang bật, Tailscale và kết nối SMB."; break;
                 case 1223: help="Đã hủy kết nối NAS."; break;
                 default: help="Windows không hoàn tất kết nối NAS. Kiểm tra chi tiết lỗi bên dưới."; break;
@@ -98,30 +100,6 @@ namespace GoogleNas {
             if(saved!=null && (string.IsNullOrWhiteSpace(user) || string.Equals(saved.User,user,StringComparison.OrdinalIgnoreCase))) return saved;
             if(!string.IsNullOrWhiteSpace(user)) throw new Exception("Nhập mật khẩu cho tài khoản NAS mới. Mật khẩu đã lưu thuộc tài khoản khác.");
             return null; // Existing Windows Credential Manager entries remain usable without another dialog.
-        }
-        public static NasLogin ChooseLogin(NasLogin saved,string user,string password,bool promptAgain,Func<NasLogin> prompt) {
-            if(!promptAgain && !string.IsNullOrEmpty(password)) { ValidateRemoteUser(user); return new NasLogin { User=user,Password=password }; }
-            if(!promptAgain && saved!=null && (string.IsNullOrWhiteSpace(user) || string.Equals(saved.User,user,StringComparison.OrdinalIgnoreCase))) return saved;
-            var login=prompt(); if(login!=null) { ValidateRemoteUser(login.User); if(string.IsNullOrEmpty(login.Password)) throw new Exception("Nhập mật khẩu Windows / NAS; không dùng mã PIN."); }
-            return login;
-        }
-        [StructLayout(LayoutKind.Sequential,CharSet=CharSet.Unicode)] private struct CredUiInfo {
-            public int Size; public IntPtr Owner; public string Message,Caption; public IntPtr Banner;
-        }
-        [DllImport("credui.dll",EntryPoint="CredUIPromptForCredentialsW",CharSet=CharSet.Unicode)] private static extern int PromptCredentials(ref CredUiInfo info,string target,IntPtr context,int error,StringBuilder user,int maxUser,StringBuilder password,int maxPassword,[MarshalAs(UnmanagedType.Bool)] ref bool save,int flags);
-        public static NasLogin PromptLogin(IntPtr owner,string host,string share,string account) {
-            string path=RemotePath(host,share);
-            var info=new CredUiInfo { Size=Marshal.SizeOf(typeof(CredUiInfo)),Owner=owner,Caption="Đăng nhập CYAN NAS",Message="Kết nối "+path+"\nDùng tài khoản Windows của máy chứa ổ. Thông tin chỉ được lưu sau khi kết nối thành công." };
-            var user=new StringBuilder(514); if(!string.IsNullOrWhiteSpace(account) && account.Length<514) user.Append(account);
-            var password=new StringBuilder(257); bool save=false;
-            try {
-                // Let Windows collect credentials; persistence is handled after SMB succeeds.
-                const int Generic=0x40000,AlwaysShow=0x80,DoNotPersist=0x2;
-                int error=PromptCredentials(ref info,host,IntPtr.Zero,0,user,user.Capacity,password,password.Capacity,ref save,Generic|AlwaysShow|DoNotPersist);
-                if(error==1223) return null;
-                if(error!=0) throw ConnectionError(error,path);
-                return new NasLogin { User=user.ToString(),Password=password.ToString() };
-            } finally { for(int i=0;i<password.Length;i++) password[i]='\0'; password.Length=0; }
         }
         internal string MapAndSave(IntPtr owner,NasProfile profile,string user,string password,Action<string,string> connect=null,Action<string,string,string> saveWindows=null) {
             var login=ResolveLogin(string.IsNullOrEmpty(password)?LoadRemoteLogin(profile.Host,profile.RemoteShare):null,user,password);
@@ -153,40 +131,6 @@ namespace GoogleNas {
         public bool Installed { get { return File.Exists(Cli); } }
         public NasProfile Load() { string path=Path.Combine(home,"nas.json"); return File.Exists(path)?Core.Json.Deserialize<NasProfile>(File.ReadAllText(path)):new NasProfile(); }
         public void Save(NasProfile profile) { string path=Path.Combine(home,"nas.json"); File.WriteAllText(path+".new",Core.Json.Serialize(profile)); if(File.Exists(path)) File.Replace(path+".new",path,null); else File.Move(path+".new",path); }
-        private List<NasProfile> Connections() {
-            string file=Path.Combine(home,"nas-connections.json");
-            return File.Exists(file)?Core.Json.Deserialize<List<NasProfile>>(File.ReadAllText(file)):new List<NasProfile> { Load() };
-        }
-        public void RememberConnection(NasProfile profile) {
-            var connections=Connections(); connections.RemoveAll(p=>p.Letter==profile.Letter);
-            connections.Add(new NasProfile { Host=profile.Host,RemoteShare=profile.RemoteShare,Letter=profile.Letter,RemoteUser=profile.RemoteUser });
-            string file=Path.Combine(home,"nas-connections.json"); File.WriteAllText(file+".new",Core.Json.Serialize(connections));
-            if(File.Exists(file)) File.Replace(file+".new",file,null); else File.Move(file+".new",file);
-        }
-        public static bool CanMaintain(string actual,string expected) { return actual!=null && string.Equals(actual,expected,StringComparison.OrdinalIgnoreCase); }
-        public Task<string> MaintainConnections() { return monitor.Poll(async()=> {
-            var messages=new List<string>();
-            foreach(var p in Connections()) {
-                if(!IsTailIp(p.Host)) continue;
-                try {
-                    string expected=RemotePath(p.Host,p.RemoteShare); ValidateLetter(p.Letter);
-                    // Only mappings still owned by this profile are touched. A removed or reassigned drive stays untouched.
-                    if(!CanMaintain(MappedPath(p.Letter),expected)) continue;
-                    await Probe(p.Host).ConfigureAwait(false);
-                    if(!Directory.Exists(p.Letter+@":\")) {
-                        if(!CanMaintain(MappedPath(p.Letter),expected)) continue;
-                        var resource=new NetResource { Type=1,LocalName=p.Letter+":",RemoteName=expected };
-                        // Cached Windows credentials only: no background dialog, force-unmap or file closure.
-                        var login=LoadRemoteLogin(p.Host,p.RemoteShare);
-                        int error=WNetAddConnection3(IntPtr.Zero,ref resource,login==null?null:login.Password,login==null?null:login.User,0);
-                        if(error!=0) throw ConnectionError(error,expected);
-                        if(!Directory.Exists(p.Letter+@":\")) throw new IOException("Windows chưa truy cập được thư mục NAS.");
-                    }
-                    messages.Add(p.Letter+": đã kết nối");
-                } catch(Exception e) { messages.Add(p.Letter+": mất kết nối — "+e.Message+" Sẽ thử lại tự động."); }
-            }
-            return messages.Count==0?"":string.Join("\n",messages);
-        }); }
         public static bool IsTailIp(string value) {
             IPAddress ip; if(!Regex.IsMatch(value??"",@"^100\.[1-9][0-9]{1,2}\.(0|[1-9][0-9]{0,2})\.(0|[1-9][0-9]{0,2})$") || !IPAddress.TryParse(value,out ip) || ip.AddressFamily!=AddressFamily.InterNetwork) return false;
             byte[] bytes=ip.GetAddressBytes(); return bytes[0]==100 && bytes[1]>=64 && bytes[1]<=127;
@@ -286,5 +230,6 @@ namespace GoogleNas {
             if(await Task.WhenAny(pending,Task.Delay(100))!=pending) return null;
             try { return await pending; } finally { pending=null; next=DateTime.UtcNow.AddSeconds(60); }
         }
+        public async Task<bool> WaitIdle() { var work=pending; return work==null || await Task.WhenAny(work,Task.Delay(5000))==work; }
     }
 }

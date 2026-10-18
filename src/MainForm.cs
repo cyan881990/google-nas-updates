@@ -26,7 +26,7 @@ namespace GoogleNas {
         private List<Panel> pages=new List<Panel>(); private Panel pageHost;
         public MainForm(bool hidden) : this(hidden,new Services()) { }
         public MainForm(bool hidden, Services backend, bool previewOnly=false) {
-            service=backend; settings=service.Load(); nas=new NasService(service.Home);
+            service=backend; settings=service.Load(); nas=new NasService(service.Home); nasPreview=previewOnly;
             SuspendLayout(); AutoScaleMode=AutoScaleMode.None;
             Text="CYAN NAS"; FormBorderStyle=FormBorderStyle.None; Icon=Theme.Icon(); Font=new Font("Segoe UI",10); BackColor=Theme.Background;
             Size=new Size(1320,900); MinimumSize=new Size(980,680); StartPosition=FormStartPosition.CenterScreen;
@@ -41,14 +41,14 @@ namespace GoogleNas {
             nasLetter.DropDownStyle=ComboBoxStyle.DropDownList; for(char c='D';c<='Z';c++) nasLetter.Items.Add(c.ToString()); nasLetter.SelectedItem=values.Letter;
             nasReadOnly.Text="Chỉ cho phép đọc file"; nasReadOnly.Checked=values.ReadOnly;
             nasCreateUser.Text="Tạo tài khoản mới cho NAS"; nasCreateUser.Checked=values.CreateUser;
-            BuildDesktop(); SelectPage(0); DependencyStatus(); UpdateDriveActions(); ResumeLayout(true);
+            BuildDesktop(); SelectPage(0); DependencyStatus(); UpdateDriveActions(); ResumeLayout(true); FillNasList(localNasList,nas.LocalShares(),true); FillNasList(remoteNasList,nas.Connections(),false); UpdateNasActions();
             if(previewOnly) return;
             var menu=new ContextMenuStrip(); menu.Items.Add("Mở CYAN NAS",null,(a,b)=>ShowWindow()); menu.Items.Add("Mở ổ đĩa",null,(a,b)=>{ Process.Start("explorer.exe",Core.Quote(settings.Letter+@":\")); });
             menu.Items.Add("Thoát an toàn",null,async(a,b)=>await Run(async()=>{ await service.Stop(); exiting=true; Close(); }));
             tray=new NotifyIcon { Icon=Icon, Text="CYAN NAS", Visible=true, ContextMenuStrip=menu }; tray.DoubleClick+=(a,b)=>ShowWindow();
             tray.MouseClick+=(a,b)=>{ if(b.Button==MouseButtons.Left) ShowWindow(); };
             FormClosing+=(a,b)=>{ if(!exiting && b.CloseReason==CloseReason.UserClosing) { b.Cancel=true; WindowState=FormWindowState.Minimized; } };
-            Shown+=async(a,b)=>{ if(hidden) WindowState=FormWindowState.Minimized; wantMount=settings.AutoMount && File.Exists(service.Config); if(wantMount) await Run(StartMount); timer.Interval=10000; timer.Tick+=async(x,y)=>await Tick(); timer.Start(); };
+            Shown+=async(a,b)=>{ if(hidden) WindowState=FormWindowState.Minimized; polling=true; try { await RefreshNasCatalogs(); await nas.MaintainConnections(); await RefreshNasCatalogs(false); } catch(Exception e) { status.Text="NAS: "+e.Message; } finally { polling=false; } timer.Interval=10000; timer.Tick+=async(x,y)=>await Tick(); timer.Start(); wantMount=settings.AutoMount && File.Exists(service.Config); if(wantMount) await Run(StartMount); };
         }
         private NasProfile NasValues() {
             string host=nasHost.Text.Trim(); int separator=host.LastIndexOf('·'); if(separator>=0) host=host.Substring(separator+1).Trim();
@@ -62,7 +62,7 @@ namespace GoogleNas {
         private async Task Run(Func<Task> action) {
             if(busy) return; busy=true; activity.Text="Đang xử lý…"; foreach(var b in actionButtons) b.Enabled=false;
             try { var deadline=DateTime.UtcNow.AddSeconds(15); while(polling) { if(IsDisposed || exiting) return; if(DateTime.UtcNow>=deadline) throw new Exception("Tác vụ nền chưa hoàn tất. Vui lòng thử lại sau ít giây."); await Task.Delay(100); } if(!IsDisposed && !exiting) await action(); } catch(Exception e) { status.Text=e.Message; if(tray!=null) tray.ShowBalloonTip(5000,"CYAN NAS",e.Message,ToolTipIcon.Warning); if(Visible) MessageBox.Show(this,e.Message,"CYAN NAS",MessageBoxButtons.OK,MessageBoxIcon.Warning); }
-            finally { busy=false; if(!IsDisposed) { foreach(var b in actionButtons) b.Enabled=true; UpdateDriveActions(); if(activity.Text=="Đang xử lý…") activity.Text="Sẵn sàng."; } }
+            finally { busy=false; if(!IsDisposed) { foreach(var b in actionButtons) b.Enabled=true; UpdateDriveActions(); UpdateNasActions(); if(activity.Text=="Đang xử lý…") activity.Text="Sẵn sàng."; } }
         }
         private void Save() {
             var s=new Settings { Remote=remote.Text.Trim(), Letter=Convert.ToString(letter.SelectedItem), Folder=folder.Text.Trim(), CacheGB=(int)cache.Value, AutoMount=autoMount.Checked, AutoUpdate=autoUpdate.Checked, Repository=Core.EffectiveRepository(settings.Repository) }; Core.Validate(s);
@@ -77,10 +77,10 @@ namespace GoogleNas {
         private async Task Tick() {
             if(busy || polling) return; polling=true;
             try {
-                try { string connection=await nas.MaintainConnections(); if(connection!=null && nasConnection!=null) nasConnection.Text=connection; } catch(Exception e) { if(nasConnection!=null) nasConnection.Text="Kết nối NAS: "+e.Message; }
+                try { await nas.MaintainConnections(); await RefreshNasCatalogs(false); } catch(Exception e) { if(nasConnection!=null) nasConnection.Text="Kết nối NAS: "+e.Message; }
                 if(service.Running) { var stats=await service.Rc("vfs/stats"); var d=(Dictionary<string,object>)stats["diskCache"]; queued.Text=Core.Number(d,"uploadsQueued").ToString(); uploading.Text=Core.Number(d,"uploadsInProgress").ToString(); cacheUsed.Text=(Core.Number(d,"bytesUsed")/1073741824.0).ToString("0.0")+" GB"; status.Text=Core.Number(d,"erroredFiles")>0?"Có file upload lỗi. Kiểm tra nhật ký trước khi ngắt.":"Đã kết nối · Thay đổi được đồng bộ sau khi lưu"; }
                 else if(wantMount && DateTime.UtcNow>=nextRetry) await StartMount();
-                if((pages[1].Visible || pages[2].Visible || pages[3].Visible) && nas.Installed && DateTime.UtcNow>=nextNasRefresh) { nextNasRefresh=DateTime.UtcNow.AddMinutes(1); await RefreshNas(); }
+                if((pages[1].Visible || pages[2].Visible || pages[3].Visible) && DateTime.UtcNow>=nextNasRefresh) { nextNasRefresh=DateTime.UtcNow.AddMinutes(1); await RefreshNasCatalogs(); if(nas.Installed) await RefreshNas(); }
                 if(settings.AutoUpdate && settings.Repository!="" && DateTime.UtcNow>=nextUpdate) { nextUpdate=DateTime.UtcNow.AddHours(6); await Update(true); }
             } catch(Exception ex) { status.Text=ex.Message; nextRetry=DateTime.UtcNow.AddSeconds(30); } finally { polling=false; if(!IsDisposed) UpdateDriveActions(); }
         }

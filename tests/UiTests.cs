@@ -57,6 +57,11 @@ class UiTests {
                 policy.Width=1200; if(!policy.IsWide || b.Left<=a.Right || b.Top!=a.Top) throw new Exception("Wide desktop layout must use two separate columns.");
                 policy.Width=600; if(policy.IsWide || b.Left!=0 || b.Top<=a.Bottom) throw new Exception("Compact desktop layout must stack without overlap.");
             }
+            Directory.CreateDirectory(Path.Combine(root,"data")); var catalog=new NasService(Path.Combine(root,"data"));
+            catalog.RememberShare(new NasProfile { Share="MediaNas",Folder=@"E:\Media",User="nasuser",CreateUser=false });
+            catalog.RememberShare(new NasProfile { Share="ArchiveNas",Folder=@"F:\Archive",User="nasuser",CreateUser=false });
+            catalog.RememberConnection(new NasProfile { Host="100.64.0.1",RemoteShare="Data_1",Letter="N",RemoteUser=@"NASPC\fixtureuser",AutoConnect=true });
+            catalog.RememberConnection(new NasProfile { Host="100.64.0.2",RemoteShare="Archive",Letter="P",RemoteUser=@"NASPC\fixtureuser",AutoConnect=false });
             foreach(float scale in new[]{1f,1.25f,1.5f,2f}) using(var form=new MainForm(false,new Services(Path.Combine(root,"data")),true)) {
                 if(form.Text!="CYAN NAS") throw new Exception("Application title was not renamed.");
                 if(form.FormBorderStyle!=FormBorderStyle.None) throw new Exception("Apple design must not show the Windows border or caption.");
@@ -91,6 +96,15 @@ class UiTests {
                     host.Text="100.64.0.2";
                     if(remoteSecret.Text.Length!=0 || !remoteSecret.UseSystemPasswordChar) throw new Exception("Changing remote host must clear and mask password.");
                     Console.WriteLine("Remote login UI: restore saved account/password and clear on host change passed.");
+                    var remoteLetter=(ComboBox)typeof(MainForm).GetField("nasLetter",fieldFlags).GetValue(form); host.Text="100.64.0.3"; share.Text="SavedNas"; remoteLetter.SelectedItem="R"; remoteAccount.Text=@"NASPC\fixtureuser"; remoteSecret.Text="Saved!Configuration12";
+                    Click(form,"SaveRemoteLogin");
+                    if(catalog.LoadRemoteLogin("100.64.0.3","SavedNas").Password!="Saved!Configuration12" || catalog.Connections().Find(p=>p.Letter=="R").AutoConnect || remoteSecret.Text.Length>0) throw new Exception("Save login must encrypt credentials, clear the field and wait for first verified mount.");
+                    form.PreviewPage(1); Application.DoEvents(); var states=(Dictionary<string,NasItemState>)typeof(MainForm).GetField("localShareStates",fieldFlags).GetValue(form); states["MediaNas"]=new NasItemState { Key="MediaNas",State="Enabled",Message="Đang chia sẻ" };
+                    var list=(ListBox)typeof(MainForm).GetField("localNasList",fieldFlags).GetValue(form);
+                    typeof(MainForm).GetMethod("RefreshNasCatalogs",fieldFlags).Invoke(form,new object[]{false}); list.SelectedIndex=0; Application.DoEvents();
+                    var create=(Button)typeof(MainForm).GetField("createNasButton",fieldFlags).GetValue(form); if(create.Enabled || create.Text!="Đã bật chia sẻ") throw new Exception("Already enabled NAS must not expose another Enable action.");
+                    if(list.Items.Count!=2) throw new Exception("Local NAS list must retain both shared disks.");
+                    Console.WriteLine("NAS lists: multiple disks, duplicate-enable guard and encrypted login configuration passed.");
                 }
                 // Exercise the exact atomic scaling operation used at application startup.
                 form.ApplyDesktopScale(scale,true); Application.DoEvents();

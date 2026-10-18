@@ -9,7 +9,8 @@ $originalAcl=(Get-Acl -LiteralPath $fixture).Sddl
 $script:shares=@{}; $script:rules=@{}; $script:account=$null; $script:open=$false; $script:openDirectory=$false; $script:failFirewall=$false; $script:lastShare=$null; $script:lastRule=$null
 Set-Content -LiteralPath (Join-Path $fixture 'open.txt') -Value 'fixture'
 function Get-NasNetwork { return @{Address='100.100.0.1';Interface='Fixture Tailscale'} }
-function Get-SmbShare { param($Name,$ErrorAction) if($script:shares.ContainsKey($Name)){return $script:shares[$Name]} }
+function Get-SmbShare { param($Name,$ErrorAction) if(-not $Name){return @($script:shares.Values)}; if($script:shares.ContainsKey($Name)){return $script:shares[$Name]} }
+function Get-SmbShareAccess { param($Name,$ErrorAction) return [pscustomobject]@{AccountName=($env:COMPUTERNAME+'\fixturenas');AccessControlType='Allow';AccessRight='Change'} }
 function Get-LocalUser { param($Name,$ErrorAction) return $script:account }
 function New-LocalUser { param($Name,$Password,$Description,[switch]$PasswordNeverExpires) $script:account=[pscustomobject]@{Name=$Name;Enabled=$true;Description=$Description;SID=(New-Object Security.Principal.SecurityIdentifier('S-1-5-21-123456789-123456789-123456789-1001'))};return $script:account }
 function Set-LocalUser { param($SID,$Password) $script:passwordChanges++ }
@@ -41,6 +42,8 @@ try {
     Check ($result.path -eq '\\100.100.0.1\FixtureNas') 'Wrong NAS path'
     Check ($script:lastShare.EncryptData -and $script:lastShare.ChangeAccess -and -not $script:lastShare.ReadAccess) 'Write share permissions/encryption wrong'
     Check ($script:lastRule.LocalPort -eq 445 -and $script:lastRule.LocalAddress -eq '100.100.0.1' -and $script:lastRule.RemoteAddress -eq '100.64.0.0/10' -and $script:lastRule.InterfaceAlias -eq 'Fixture Tailscale') 'Firewall not scoped to Tailscale'
+    $data.Operation='List';$listed=Invoke-NasOperation $data
+    Check ($listed.shares.Count -eq 1 -and $listed.shares[0].Share -eq 'FixtureNas' -and $listed.shares[0].User -eq 'fixturenas' -and $listed.shares[0].Folder -eq $fixture) 'Owned NAS discovery lost path or account'
     $data.Operation='SetNasPassword';$script:open=$true;$script:passwordChanges=0
     Invoke-NasOperation $data | Out-Null
     Check ($script:passwordChanges -eq 1 -and $script:shares.Count -eq 1 -and $script:rules.Count -eq 1) 'Password change stopped share or changed firewall'

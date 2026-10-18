@@ -73,6 +73,16 @@ function Invoke-NasOperation($Data) {
             if (-not $share -or $share.Description -ne $owner) { return @{ enabled=$false; message='No managed NAS share with this name.' } }
             return @{ enabled=$true; folder=$share.Path; message='NAS share is enabled.' }
         }
+        'List' {
+            $shares=@(Get-SmbShare -ErrorAction Stop | Where-Object { $_.Description -eq $owner } | ForEach-Object {
+                $share=$_
+                $access=@(Get-SmbShareAccess -Name $share.Name -ErrorAction Stop | Where-Object { $_.AccessControlType -eq 'Allow' -and $_.AccountName.StartsWith($env:COMPUTERNAME+'\',[StringComparison]::OrdinalIgnoreCase) })
+                $user='';$readOnly=$false
+                if($access.Count -gt 0) { $user=$access[0].AccountName.Substring($env:COMPUTERNAME.Length+1); $readOnly=$access[0].AccessRight -eq 'Read' }
+                @{Share=$share.Name;Folder=$share.Path;User=$user;ReadOnly=$readOnly;CreateUser=$false}
+            })
+            return @{ shares=$shares; message='Đã đọc danh sách NAS thuộc tài khoản này.' }
+        }
         'Create' {
             Assert-NasShareName $profile.Share; Assert-NasUserName $profile.User
             $folder=Assert-NasFolder $profile.Folder; $network=Get-NasNetwork
