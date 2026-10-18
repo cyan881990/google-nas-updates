@@ -20,12 +20,18 @@ class UiTests {
         var panels=(List<Panel>)typeof(MainForm).GetField("pages",flags).GetValue(form);
         for(int i=0;i<6;i++) if(panels[i].Visible!=(i==page)) throw new Exception("Feature navigation must show exactly one page.");
         var root=panels[page]; if(root.HorizontalScroll.Visible) throw new Exception("Horizontal page scrolling at "+scale+" / "+viewport+" / "+page+" client="+root.ClientSize+" child="+root.Controls[0].Bounds+" display="+root.DisplayRectangle+" scroll="+root.HorizontalScroll.Maximum);
+        foreach(var c in All(form)) {
+            if(c.Name=="NavigationScroll" && ((Panel)c).HorizontalScroll.Visible) { foreach(Control child in c.Controls) Console.WriteLine("NAV "+child.Text+" "+child.Bounds); var shell=(TableLayoutPanel)c.Parent.Parent; Console.WriteLine("SIDEBAR parent="+c.Parent.Bounds+" column="+shell.ColumnStyles[0].Width+" UiScale="+typeof(MainForm).GetProperty("UiScale",flags).GetValue(form,null)); throw new Exception("Sidebar must not scroll horizontally at "+scale+" / "+viewport+" client="+c.ClientSize+" display="+((Panel)c).DisplayRectangle); };
+            if(c.Name=="Brand" && c.Right>c.Parent.ClientSize.Width) throw new Exception("Sidebar brand clipped after resize at "+scale);
+        }
         foreach(var c in All(root)) {
             if(!c.Visible) continue;
             if(c is TextBox || c is ComboBox || c is NumericUpDown || c is Button || c is CheckBox) {
                 if(c.Left<0 || c.Right>c.Parent.ClientSize.Width+2 || c.Top<0 || c.Bottom>c.Parent.ClientSize.Height+2) throw new Exception("Clipped control "+c.Name+" / "+c.Text+" at "+scale+" / "+viewport+" / page "+page+": "+c.Bounds+" in "+c.Parent.ClientSize);
             }
             if(c is Label && c.Parent is Card && ((Label)c).AutoSize && c.Right>c.Parent.ClientSize.Width-5) throw new Exception("Clipped card label: "+c.Text+" at "+scale+" / "+viewport);
+            if(c.Parent is Card && (c.Anchor&AnchorStyles.Right)!=0 && Math.Abs(c.Right-(c.Parent.ClientSize.Width-c.Parent.Padding.Right))>3) throw new Exception("Card field collapsed during DPI layout: "+c.Name+" "+c.Bounds);
+            if(c is InputSurface && c.Width<100*scale) throw new Exception("Input surface collapsed: "+c.Bounds);
         }
         var grid=(DashboardColumns)root.Controls[0];
         if(form.ClientSize.Width>=1800 && scale==1 && !grid.IsWide) throw new Exception("Wide PC screen must use two columns: actual="+form.Size+" grid="+grid.Size);
@@ -36,6 +42,16 @@ class UiTests {
         try {
             Application.EnableVisualStyles(); Application.SetCompatibleTextRenderingDefault(false);
             string root=Path.GetFullPath(args[0]); Directory.CreateDirectory(root);
+            if(args.Length>1 && args[1]=="--native-dpi") {
+                using(var form=new MainForm(false,new Services(Path.Combine(root,"data")),true)) {
+                    form.ShowInTaskbar=false; form.StartPosition=FormStartPosition.Manual; form.Location=new Point(-10000,-10000); form.Show(); Application.DoEvents();
+                    float nativeScale; using(var g=form.CreateGraphics()) nativeScale=g.DpiX/96f;
+                    for(int page=0;page<6;page++) { form.PreviewPage(page); Application.DoEvents(); VerifyLayout(form,page,nativeScale,form.Size); }
+                    using(var bitmap=new Bitmap(form.Width,form.Height)) { form.DrawToBitmap(bitmap,new Rectangle(Point.Empty,form.Size)); bitmap.Save(Path.Combine(root,"native-dpi.png")); }
+                    Console.WriteLine("Production DPI manifest and startup layout passed at Windows DPI "+(nativeScale*96)+".");
+                }
+                return 0;
+            }
             using(var policy=new DashboardColumns(()=>1)) {
                 var a=new Card { Height=180 }; var b=new Card { Height=220 }; policy.Add(a,false); policy.Add(b,true);
                 policy.Width=1200; if(!policy.IsWide || b.Left<=a.Right || b.Top!=a.Top) throw new Exception("Wide desktop layout must use two separate columns.");
@@ -71,11 +87,9 @@ class UiTests {
                     if(remoteSecret.Text.Length!=0 || !remoteSecret.UseSystemPasswordChar) throw new Exception("Changing remote host must clear and mask password.");
                     Console.WriteLine("Remote login UI: restore saved account/password and clear on host change passed.");
                 }
-                // Simulate both logical geometry and font pixel size without changing Windows display settings.
-                var controls=All(form); var fonts=new Dictionary<Control,Font>(); foreach(var c in controls) fonts[c]=c.Font;
-                form.SuspendLayout(); form.AutoScaleMode=AutoScaleMode.None; form.SetPreviewScale(scale); form.Scale(new SizeF(scale,scale));
-                foreach(var pair in fonts) pair.Key.Font=new Font(pair.Value.FontFamily,pair.Value.Size*scale,pair.Value.Style);
-                form.ResumeLayout(true); Application.DoEvents();
+                // Exercise the exact atomic scaling operation used at application startup.
+                form.ApplyDesktopScale(scale,true); Application.DoEvents();
+                var controls=All(form);
                 foreach(var c in controls) if(c is Label && c.Text=="CYAN NAS") { if(c.Right>c.Parent.ClientSize.Width) throw new Exception("Sidebar title clipped at "+scale); }
                 // Hosted Windows desktops may have a 1024px maximum tracking size. Allow offscreen render viewports.
                 form.MinimumSize=Size.Empty; form.MaximumSize=new Size(8192,8192);
@@ -96,6 +110,19 @@ class UiTests {
                     }
                 }
             }
+            // Hidden pages must also retain their field widths and design heights when
+            // scaled before the first native window is shown (the real startup order).
+            foreach(float scale in new[]{1.25f,1.5f,2f}) using(var form=new MainForm(false,new Services(Path.Combine(root,"startup")),true)) {
+                if(form.AutoScaleMode!=AutoScaleMode.None) throw new Exception("Do not combine Windows autoscaling with responsive layout callbacks.");
+                form.ApplyDesktopScale(scale,true); form.ShowInTaskbar=false; form.StartPosition=FormStartPosition.Manual; form.Location=new Point(-10000,-10000); form.Show(); Application.DoEvents();
+                form.MinimumSize=Size.Empty; form.MaximumSize=new Size(8192,8192); form.Size=new Size(1948,1330);
+                for(int page=0;page<6;page++) {
+                    form.PreviewPage(page); Application.DoEvents(); VerifyLayout(form,page,scale,form.Size);
+                    foreach(var c in All(form)) if(c is Card && c.Height>550*scale) throw new Exception("Card height scaled more than once at startup: "+c.Name+" "+c.Height);
+                    using(var bitmap=new Bitmap(form.Width,form.Height)) { form.DrawToBitmap(bitmap,new Rectangle(Point.Empty,form.Size)); bitmap.Save(Path.Combine(root,"startup-"+page+"-"+(int)(scale*100)+".png")); }
+                }
+            }
+            Console.WriteLine("Atomic startup DPI: hidden pages, field widths, card heights and sidebar passed at 125/150/200%.");
             using(var form=new MainForm(false,new Services(Path.Combine(root,"lifecycle")))) {
                 form.StartPosition=FormStartPosition.Manual; form.Location=new Point(-10000,-10000); form.Show(); Application.DoEvents();
                 Click(form,"WindowMaximize"); if(form.WindowState!=FormWindowState.Maximized) throw new Exception("Green window button must maximize.");

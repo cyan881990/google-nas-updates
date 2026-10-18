@@ -1,4 +1,6 @@
-# CYAN NAS cho Windows — v1.3.0
+# CYAN NAS cho Windows — v1.3.1
+
+v1.3.1 sửa lỗi giao diện khi Windows phóng to DPI: chỉ co giãn một lần lúc khởi động, chờ co giãn toàn bộ cây control rồi mới sắp xếp thẻ. Khắc phục ô nhập biến mất/co nhỏ, thẻ kéo dài và thanh bên bị cắt chữ. Kiểm thử thêm co giãn trước lần mở cửa sổ đầu tiên và dùng manifest DPI thật của app.
 
 v1.3.0 thiết kế lại giao diện desktop phong cách Apple: cửa sổ không viền Windows, nút đóng/thu nhỏ/phóng to đỏ-vàng-xanh, thanh bên sáng, thẻ/nút/ô nhập bo góc. Icon riêng kết hợp đám mây và ổ lưu trữ, đồng bộ cho app, taskbar, khay hệ thống, shortcut và bộ cài; tệp ICO có 9 kích thước 16–256 px. Thanh bên tự thu gọn khi cửa sổ hẹp hoặc DPI cao. Có thể kéo thanh tiêu đề và đổi kích thước từ cạnh/góc cửa sổ. Thiết kế quanh hai chức năng chính: Google Drive và Ổ cứng thành NAS. Gộp cấu hình Google Drive cùng trạng thái ổ; tách riêng Kết nối NAS, Mạng Tailscale, Cài đặt và Trợ giúp. Bố cục hai cột trên PC, tự chuyển một cột ở cửa sổ hẹp, cuộn dọc và hỗ trợ DPI 100–200%. Mật khẩu có nút hiện/ẩn ngay cạnh ô nhập, tên cấu hình Google nâng cao được thu gọn. Thao tác người dùng được chờ tác vụ kiểm tra nền thay vì bỏ qua lần bấm. Giữ cấu hình, dữ liệu và thông tin đăng nhập từ các bản trước.
 

@@ -11,12 +11,11 @@ namespace GoogleNas {
         private Label subtitle, breadcrumb, activity;
         private Button driveMount, driveOpen, driveStop, driveLogin, serverReveal, clientReveal;
         private DateTime nextNasRefresh=DateTime.MinValue;
-        private float previewScale=1;
         private System.Action resizeSidebar;
         private Image brandImage;
         private string[] pageNames={"Google Drive","Ổ cứng thành NAS","Kết nối NAS","Mạng Tailscale","Cài đặt","Trợ giúp"};
         private string[] pageDescriptions={"Kết nối tài khoản Google và làm việc với file ngay trong Windows Explorer.","Chia sẻ ổ cứng hoặc thư mục trên máy này cho các thiết bị của bạn.","Gắn ổ được chia sẻ từ máy khác vào Windows Explorer trên máy này.","Thiết lập mạng riêng để truy cập NAS từ xa qua Internet.","Quản lý khởi động cùng Windows và các bản cập nhật của CYAN NAS.","Thông tin ứng dụng, thành phần tích hợp và công cụ hỗ trợ."};
-        private float UiScale { get { return previewScale*(AutoScaleMode==AutoScaleMode.Dpi?CurrentAutoScaleDimensions.Width/96f:1); } }
+        private float UiScale { get { return desktopScale; } }
         private void BuildDesktop() {
             var shell=new TableLayoutPanel { Dock=DockStyle.Fill,ColumnCount=2,RowCount=1,Margin=Padding.Empty };
             shell.RowStyles.Add(new RowStyle(SizeType.Percent,100));
@@ -53,20 +52,22 @@ namespace GoogleNas {
             Deactivate+=(a,b)=>HidePasswords();
             bool resizingSidebar=false;
             resizeSidebar=()=>{
-                if(resizingSidebar || IsDisposed) return;
+                if(resizingSidebar || IsDisposed || Theme.LayoutScaling) return;
                 resizingSidebar=true;
                 try {
                     float scale=UiScale; bool compact=ClientSize.Width/scale<1000;
                     shell.ColumnStyles[0].Width=(compact?160:232)*scale;
+                    shell.PerformLayout(); side.PerformLayout();
                     brandArea.Height=(int)((compact?84:100)*scale); tagline.Visible=!compact;
                     brandIcon.Bounds=new Rectangle((int)(16*scale),(int)(21*scale),(int)(40*scale),(int)(40*scale));
                     brand.Location=new Point((int)((compact?62:70)*scale),(int)((compact?30:26)*scale));
-                    float fontSize=(compact?11.5f:18)*previewScale;
+                    float fontSize=(compact?11.5f:18)*Font.Size/10f;
                     if(Math.Abs(brand.Font.Size-fontSize)>0.01) brand.Font=new Font("Segoe UI",fontSize,FontStyle.Bold);
                     mainCaption.Text=compact?"CHÍNH":"TÍNH NĂNG CHÍNH"; appCaption.Text=compact?"ỨNG DỤNG":"KẾT NỐI & ỨNG DỤNG";
                     mainCaption.Left=appCaption.Left=(int)((compact?14:26)*scale);
                     string[] compactNames={"Google Drive","Ổ cứng NAS","Kết nối NAS","Tailscale","Cài đặt","Trợ giúp"};
                     for(int i=0;i<navigation.Count;i++) { var nav=navigation[i]; nav.Text=compact?compactNames[i]:pageNames[i]; nav.Left=(int)((compact?8:12)*scale); nav.Width=Math.Max(1,navArea.ClientSize.Width-nav.Left*2); }
+                    navArea.PerformLayout();
                 } finally { resizingSidebar=false; }
             };
             SizeChanged+=(a,b)=>resizeSidebar(); navArea.SizeChanged+=(a,b)=>resizeSidebar(); resizeSidebar();
@@ -78,7 +79,7 @@ namespace GoogleNas {
             pageHost.Controls.Add(page); pages.Add(page); page.SizeChanged+=(a,b)=>{ FitCards(page); if(!queuedLayout && page.IsHandleCreated) { queuedLayout=true; page.BeginInvoke((MethodInvoker)(()=>{ queuedLayout=false; if(page.IsDisposed) return; FitCards(page); page.PerformLayout(); })); } }; page.Layout+=(a,b)=>FitCards(page); return page;
         }
         private DashboardColumns Columns(Panel page) { var c=new DashboardColumns(()=>UiScale) { Width=940,Margin=Padding.Empty }; page.Controls.Add(c); return c; }
-        private void FitCards(Panel page) { foreach(Control c in page.Controls) c.Width=Math.Max(1,page.ClientSize.Width-2); }
+        private void FitCards(Panel page) { if(Theme.LayoutScaling) return; foreach(Control c in page.Controls) c.Width=Math.Max(1,page.ClientSize.Width-2); }
         private Card Section(DashboardColumns grid,bool right,string title,string description,int height) {
             var card=new Card { Width=430,Height=height,Name=title }; grid.Add(card,right);
             TextAt(card,title,14,true,Theme.Ink,22,18); Paragraph(card,description,22,49,42); return card;
@@ -218,7 +219,6 @@ namespace GoogleNas {
             if(driveMount==null || busy) return; bool running=service.Running;
             driveMount.Enabled=!running && File.Exists(service.Config); driveLogin.Enabled=!running; driveOpen.Enabled=running; driveStop.Enabled=running;
         }
-        public void SetPreviewScale(float scale) { previewScale=scale; }
     }
     public class DashboardColumns : Panel {
         private readonly List<Control> left=new List<Control>(),right=new List<Control>();
@@ -231,7 +231,7 @@ namespace GoogleNas {
         protected override void OnLayout(LayoutEventArgs e) { base.OnLayout(e); Reflow(); }
         private int Arrange(List<Control> cards,int x,int y,int width,int gap) { int start=y; foreach(var card in cards) { card.SetBounds(x,y,Math.Max(1,width),card.Height); y+=card.Height+gap; } return cards.Count==0?0:y-start-gap; }
         private void Reflow() {
-            if(laying || scale==null) return; laying=true;
+            if(laying || scale==null || Theme.LayoutScaling) return; laying=true;
             try { int gap=(int)Math.Round(18*scale()); IsWide=Width>=840*scale();
                 int w=IsWide?(Width-gap)/2:Width; int lh=Arrange(left,0,0,w,gap); int rh=Arrange(right,IsWide?w+gap:0,IsWide?0:lh+gap,IsWide?Width-w-gap:Width,gap);
                 Height=IsWide?Math.Max(lh,rh):lh+(right.Count>0?gap+rh:0);

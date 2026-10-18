@@ -26,7 +26,7 @@ namespace GoogleNas {
         public MainForm(bool hidden) : this(hidden,new Services()) { }
         public MainForm(bool hidden, Services backend, bool previewOnly=false) {
             service=backend; settings=service.Load(); nas=new NasService(service.Home);
-            SuspendLayout(); AutoScaleDimensions=new SizeF(96,96); AutoScaleMode=AutoScaleMode.Dpi;
+            SuspendLayout(); AutoScaleMode=AutoScaleMode.None;
             Text="CYAN NAS"; FormBorderStyle=FormBorderStyle.None; Icon=Theme.Icon(); Font=new Font("Segoe UI",10); BackColor=Theme.Background;
             Size=new Size(1320,900); MinimumSize=new Size(980,680); StartPosition=FormStartPosition.CenterScreen;
             remote.Text=settings.Remote; folder.Text=settings.Folder;
@@ -97,6 +97,7 @@ namespace GoogleNas {
             if(message.Msg==0x84 && FormBorderStyle==FormBorderStyle.None) { long raw=message.LParam.ToInt64(); var point=PointToClient(new Point((short)(raw&0xffff),(short)((raw>>16)&0xffff))); var edge=WindowEdge(point); if(edge!=IntPtr.Zero) message.Result=edge; }
         }
         protected override void OnLoad(EventArgs e) {
+            if(!desktopScaleApplied) using(var graphics=CreateGraphics()) ApplyDesktopScale(graphics.DpiX/96f,false);
             base.OnLoad(e);
             Rectangle area=Screen.FromControl(this).WorkingArea;
             MinimumSize=new Size(Math.Min(MinimumSize.Width,area.Width),Math.Min(MinimumSize.Height,area.Height));

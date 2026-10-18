@@ -61,6 +61,11 @@ if ($Test) {
     if ($LASTEXITCODE -ne 0) { throw 'UI tests compilation failed.' }
     & $uiTestExe (Join-Path $buildDir "ui-tests-$appVersion")
     if ($LASTEXITCODE -ne 0) { throw 'UI tests failed.' }
+    $nativeUiTestExe = Join-Path $buildDir 'NativeUiTests.exe'
+    & $compiler /nologo /target:exe /main:UiTests "/out:$nativeUiTestExe" "/win32manifest:$(Join-Path $projectRoot 'src\app.manifest')" /reference:System.Security.dll /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll /reference:System.IO.Compression.dll /reference:System.IO.Compression.FileSystem.dll $sourceFiles (Join-Path $projectRoot 'tests\UiTests.cs')
+    if ($LASTEXITCODE -ne 0) { throw 'Native DPI tests compilation failed.' }
+    & $nativeUiTestExe (Join-Path $buildDir "native-ui-$appVersion") --native-dpi
+    if ($LASTEXITCODE -ne 0) { throw 'Native DPI tests failed.' }
     $nasTestExe = Join-Path $buildDir 'NasTests.exe'
     & $compiler /nologo /target:exe "/out:$nasTestExe" /reference:System.Security.dll /reference:System.Web.Extensions.dll $coreFile (Join-Path $projectRoot 'src\Nas.cs') (Join-Path $projectRoot 'tests\NasTests.cs')
     if ($LASTEXITCODE -ne 0) { throw 'NAS tests compilation failed.' }

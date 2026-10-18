@@ -4,6 +4,7 @@ using System.Drawing.Drawing2D;
 using System.Windows.Forms;
 namespace GoogleNas {
     public static class Theme {
+        [ThreadStatic] internal static bool LayoutScaling;
         public static readonly Color Navy = Color.FromArgb(18,31,52), Blue = Color.FromArgb(0,113,227), Ink = Color.FromArgb(29,29,31), Muted = Color.FromArgb(110,110,115), Background = Color.FromArgb(245,245,247), Sidebar=Color.FromArgb(235,235,240);
         public static Label Label(string text, float size, bool bold, Color color) { return new Label { Text=text, Font=new Font("Segoe UI",size,bold?FontStyle.Bold:FontStyle.Regular), ForeColor=color, AutoSize=true, BackColor=Color.Transparent, UseMnemonic=false }; }
         public static Button Button(string text, bool primary) {
@@ -16,7 +17,7 @@ namespace GoogleNas {
     public class Card : Panel {
         private bool fitting;
         public Card() { BackColor=Color.White; Padding=new Padding(22); Margin=new Padding(0,0,0,18); DoubleBuffered=true; }
-        protected override void OnLayout(LayoutEventArgs e) { base.OnLayout(e); if(fitting) return; fitting=true; try { foreach(Control c in Controls) if(c.Dock==DockStyle.None && (c.Anchor&AnchorStyles.Right)!=0) c.Width=Math.Max(1,ClientSize.Width-c.Left-Padding.Right); } finally { fitting=false; } }
+        protected override void OnLayout(LayoutEventArgs e) { base.OnLayout(e); if(fitting || Theme.LayoutScaling) return; fitting=true; try { foreach(Control c in Controls) if(c.Dock==DockStyle.None && (c.Anchor&AnchorStyles.Right)!=0) c.Width=Math.Max(1,ClientSize.Width-c.Left-Padding.Right); } finally { fitting=false; } }
         private GraphicsPath Shape() { return MacButton.Round(new RectangleF(0.5f,0.5f,Math.Max(1,Width-1),Math.Max(1,Height-1)),12*DeviceDpi/96f); }
         protected override void OnPaintBackground(PaintEventArgs e) { e.Graphics.Clear(Parent==null?Theme.Background:Parent.BackColor); e.Graphics.SmoothingMode=SmoothingMode.AntiAlias; using(var shape=Shape()) using(var brush=new SolidBrush(Color.White)) e.Graphics.FillPath(brush,shape); }
         protected override void OnPaint(PaintEventArgs e) { base.OnPaint(e); e.Graphics.SmoothingMode=SmoothingMode.AntiAlias; using(var shape=Shape()) using(var pen=new Pen(Color.FromArgb(229,229,234))) e.Graphics.DrawPath(pen,shape); }
