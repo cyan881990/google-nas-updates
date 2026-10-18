@@ -1,4 +1,6 @@
-# CYAN NAS cho Windows — v1.2.9
+# CYAN NAS cho Windows — v1.3.0
+
+v1.3.0 thiết kế lại giao diện desktop phong cách Apple: cửa sổ không viền Windows, nút đóng/thu nhỏ/phóng to đỏ-vàng-xanh, thanh bên sáng, thẻ/nút/ô nhập bo góc. Có thể kéo thanh tiêu đề và đổi kích thước từ cạnh/góc cửa sổ. Thiết kế quanh hai chức năng chính: Google Drive và Ổ cứng thành NAS. Gộp cấu hình Google Drive cùng trạng thái ổ; tách riêng Kết nối NAS, Mạng Tailscale, Cài đặt và Trợ giúp. Bố cục hai cột trên PC, tự chuyển một cột ở cửa sổ hẹp, cuộn dọc và hỗ trợ DPI 100–200%. Mật khẩu có nút hiện/ẩn ngay cạnh ô nhập, tên cấu hình Google nâng cao được thu gọn. Thao tác người dùng được chờ tác vụ kiểm tra nền thay vì bỏ qua lần bấm. Giữ cấu hình, dữ liệu và thông tin đăng nhập từ các bản trước.
 
 v1.2.9 thêm tài khoản/mật khẩu tại Gắn ổ từ máy khác. Nhập lần đầu rồi bấm Gắn / kết nối lại: chỉ khi kết nối thành công, thông tin được lưu bằng DPAPI trong nas-passwords.dat, gắn với đúng IP và tên share, đồng thời lưu credential cho IP đó trong Windows Credential Manager. Gắn lại và kiểm tra nền dùng thông tin đã lưu, không bật hộp hỏi mật khẩu. Có nút Hiện mật khẩu đã lưu. Đổi tài khoản hoặc mật khẩu trên máy chứa NAS thì cần nhập thông tin mới; tool không ép ngắt kết nối tài khoản khác. Nếu chính sách Windows không cho lưu credential, tool báo rõ và tiếp tục dùng bản mã hóa của tool khi ứng dụng chạy.
 
@@ -14,9 +16,9 @@ v1.2.0 bổ sung **NAS từ xa**: chia sẻ thư mục/ổ cứng NTFS/ReFS trê
 
 ## NAS ổ cứng qua Internet
 
-1. Trên cả hai máy: mở **NAS từ xa → Cài Tailscale → Đăng nhập**. Đăng nhập vào cùng mạng Tailscale. Mật khẩu tài khoản Google/Tailscale chỉ nhập trong trình duyệt.
-2. Máy chứa ổ: chọn thư mục hoặc ổ dữ liệu, đặt tên NAS và tài khoản local Windows. Mặc định tạo tài khoản NAS riêng; nhập mật khẩu ≥12 ký tự gồm chữ hoa, thường, số và ký hiệu. Nếu dùng tài khoản local đã tồn tại, bỏ chọn tạo tài khoản; tool không đổi mật khẩu của tài khoản đó. Chọn chỉ đọc nếu cần, bấm **Tạo NAS** và chấp nhận UAC dưới cùng tài khoản Windows quản trị đang chạy tool.
-3. Tool hiển thị `\\100.x.x.x\TenNAS` và `TEN-MAY\taikhoan`. Trên máy từ xa: nhập IP/tên NAS, chọn ký tự ổ trống → **Gắn ổ NAS**. Nhập tài khoản/mật khẩu NAS trong hộp thoại Windows; mã PIN Windows không thay thế mật khẩu. Kết nối ổ được ghi vào profile Windows để thử kết nối lại sau khi đăng nhập.
+1. Trên cả hai máy: mở **Mạng Tailscale → Cài Tailscale → Đăng nhập**. Đăng nhập vào cùng mạng Tailscale. Mật khẩu tài khoản Google/Tailscale chỉ nhập trong trình duyệt.
+2. Máy chứa ổ: chọn thư mục hoặc ổ dữ liệu, đặt tên NAS và tài khoản local Windows. Mặc định tạo tài khoản NAS riêng; nhập mật khẩu ≥12 ký tự gồm chữ hoa, thường, số và ký hiệu. Nếu dùng tài khoản local đã tồn tại, bỏ chọn tạo tài khoản; tool không đổi mật khẩu của tài khoản đó. Chọn chỉ đọc nếu cần, bấm **Bật chia sẻ NAS** và chấp nhận UAC dưới cùng tài khoản Windows quản trị đang chạy tool.
+3. Tool hiển thị `\\100.x.x.x\TenNAS` và `TEN-MAY\taikhoan`. Trên máy từ xa: nhập IP/tên NAS, chọn ký tự ổ trống → **Kết nối NAS → Gắn / kết nối lại**. Nhập tài khoản/mật khẩu NAS trong hộp thoại Windows; mã PIN Windows không thay thế mật khẩu. Kết nối ổ được ghi vào profile Windows để thử kết nối lại sau khi đăng nhập.
 4. Máy chứa ổ phải bật và không ngủ. Chia sẻ SMB tồn tại độc lập với GUI. Bấm **Chạy khi đăng xuất** để bật Tailscale unattended nếu muốn truy cập sau khi người dùng đăng xuất. Không tự thay thiết lập ngủ/điện hoặc chính sách key expiry của Tailscale.
 5. **Dừng chia sẻ** chỉ xóa chia sẻ do tool tạo cho tài khoản này và rule firewall tương ứng; từ chối khi còn file mở. Tài khoản local và quyền NTFS đã cấp được giữ. **Ngắt ổ NAS** không ép đóng file và không ngắt ổ trỏ tới share khác.
 

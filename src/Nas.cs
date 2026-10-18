@@ -16,7 +16,7 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 namespace GoogleNas {
     public class NasProfile {
-        public string Folder="", Share="GoogleNAS", User="nasuser", Host="", RemoteShare="GoogleNAS", Letter="N", RemoteUser="";
+        public string Folder="", Share="CYANNAS", User="nasuser", Host="", RemoteShare="CYANNAS", Letter="N", RemoteUser="";
         public bool ReadOnly=false, CreateUser=true;
     }
     public class NasNetwork {
