@@ -12,6 +12,8 @@ namespace GoogleNas {
         private Button driveMount, driveOpen, driveStop, driveLogin, serverReveal, clientReveal;
         private DateTime nextNasRefresh=DateTime.MinValue;
         private float previewScale=1;
+        private System.Action resizeSidebar;
+        private Image brandImage;
         private string[] pageNames={"Google Drive","Ổ cứng thành NAS","Kết nối NAS","Mạng Tailscale","Cài đặt","Trợ giúp"};
         private string[] pageDescriptions={"Kết nối tài khoản Google và làm việc với file ngay trong Windows Explorer.","Chia sẻ ổ cứng hoặc thư mục trên máy này cho các thiết bị của bạn.","Gắn ổ được chia sẻ từ máy khác vào Windows Explorer trên máy này.","Thiết lập mạng riêng để truy cập NAS từ xa qua Internet.","Quản lý khởi động cùng Windows và các bản cập nhật của CYAN NAS.","Thông tin ứng dụng, thành phần tích hợp và công cụ hỗ trợ."};
         private float UiScale { get { return previewScale*(AutoScaleMode==AutoScaleMode.Dpi?CurrentAutoScaleDimensions.Width/96f:1); } }
@@ -23,15 +25,17 @@ namespace GoogleNas {
             var side=new Panel { Dock=DockStyle.Fill,BackColor=Theme.Sidebar,Margin=Padding.Empty }; shell.Controls.Add(side,0,0);
             var navArea=new Panel { Dock=DockStyle.Fill,BackColor=Theme.Sidebar,AutoScroll=true,Name="NavigationScroll" }; side.Controls.Add(navArea);
             var brandArea=new Panel { Dock=DockStyle.Top,Height=100,BackColor=Theme.Sidebar }; side.Controls.Add(brandArea);
-            var brand=TextAt(brandArea,"CYAN NAS",20,true,Theme.Ink,24,26); brand.Name="Brand";
-            TextAt(brandArea,"Ổ đĩa của bạn. Kết nối mọi nơi.",8.5f,false,Theme.Muted,26,65);
-            TextAt(navArea,"TÍNH NĂNG CHÍNH",8,true,Theme.Muted,26,19);
+            brandImage=IconArtwork.Render(128);
+            var brandIcon=new PictureBox { Name="BrandIcon",Image=brandImage,SizeMode=PictureBoxSizeMode.Zoom,Size=new Size(40,40),Location=new Point(18,21) }; brandArea.Controls.Add(brandIcon);
+            var brand=TextAt(brandArea,"CYAN NAS",18,true,Theme.Ink,70,26); brand.Name="Brand";
+            var tagline=TextAt(brandArea,"Ổ đĩa của bạn. Kết nối mọi nơi.",8.5f,false,Theme.Muted,26,70);
+            var mainCaption=TextAt(navArea,"TÍNH NĂNG CHÍNH",8,true,Theme.Muted,26,19);
             for(int i=0;i<pageNames.Length;i++) {
                 int index=i; int top=i<2?46+i*56:226+(i-2)*52;
                 var nav=new MacButton { Name="Nav"+i,Text=pageNames[i],TextAlign=ContentAlignment.MiddleLeft,Padding=new Padding(16,0,0,0),FlatStyle=FlatStyle.Flat,ForeColor=Theme.Ink,BackColor=Theme.Sidebar,Size=new Size(208,46),Location=new Point(12,top),Cursor=Cursors.Hand,TabIndex=i };
                 nav.FlatAppearance.BorderSize=0; nav.Click+=(a,b)=>SelectPage(index); navArea.Controls.Add(nav); navigation.Add(nav);
             }
-            TextAt(navArea,"KẾT NỐI & ỨNG DỤNG",8,true,Theme.Muted,26,194);
+            var appCaption=TextAt(navArea,"KẾT NỐI & ỨNG DỤNG",8,true,Theme.Muted,26,194);
             var version=Theme.Label("CYAN NAS  "+Core.Version+"\nWindows x64",9,false,Theme.Muted); version.Dock=DockStyle.Bottom; version.AutoSize=false; version.Height=78; version.Padding=new Padding(26,15,0,0); side.Controls.Add(version);
             var main=new TableLayoutPanel { Dock=DockStyle.Fill,ColumnCount=1,RowCount=3,Margin=Padding.Empty,Padding=new Padding(28,22,28,12) };
             main.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
@@ -47,6 +51,25 @@ namespace GoogleNas {
             BuildDrivePage(); BuildLocalPage(); BuildRemotePage(); BuildNetworkPage(); BuildApplicationPage(); BuildHelpPage();
             status.TextChanged+=(a,b)=>{ if(!polling) { activity.Text=status.Text; tips.SetToolTip(activity,status.Text); } };
             Deactivate+=(a,b)=>HidePasswords();
+            bool resizingSidebar=false;
+            resizeSidebar=()=>{
+                if(resizingSidebar || IsDisposed) return;
+                resizingSidebar=true;
+                try {
+                    float scale=UiScale; bool compact=ClientSize.Width/scale<1000;
+                    shell.ColumnStyles[0].Width=(compact?160:232)*scale;
+                    brandArea.Height=(int)((compact?84:100)*scale); tagline.Visible=!compact;
+                    brandIcon.Bounds=new Rectangle((int)(16*scale),(int)(21*scale),(int)(40*scale),(int)(40*scale));
+                    brand.Location=new Point((int)((compact?62:70)*scale),(int)((compact?30:26)*scale));
+                    float fontSize=(compact?11.5f:18)*previewScale;
+                    if(Math.Abs(brand.Font.Size-fontSize)>0.01) brand.Font=new Font("Segoe UI",fontSize,FontStyle.Bold);
+                    mainCaption.Text=compact?"CHÍNH":"TÍNH NĂNG CHÍNH"; appCaption.Text=compact?"ỨNG DỤNG":"KẾT NỐI & ỨNG DỤNG";
+                    mainCaption.Left=appCaption.Left=(int)((compact?14:26)*scale);
+                    string[] compactNames={"Google Drive","Ổ cứng NAS","Kết nối NAS","Tailscale","Cài đặt","Trợ giúp"};
+                    for(int i=0;i<navigation.Count;i++) { var nav=navigation[i]; nav.Text=compact?compactNames[i]:pageNames[i]; nav.Left=(int)((compact?8:12)*scale); nav.Width=Math.Max(1,navArea.ClientSize.Width-nav.Left*2); }
+                } finally { resizingSidebar=false; }
+            };
+            SizeChanged+=(a,b)=>resizeSidebar(); navArea.SizeChanged+=(a,b)=>resizeSidebar(); resizeSidebar();
         }
         private Label HeaderLabel(string text,float size,bool bold,Color color) { var l=Theme.Label(text,size,bold,color); l.AutoSize=false; l.Dock=DockStyle.Fill; l.AutoEllipsis=true; l.Margin=Padding.Empty; return l; }
         private Panel Page() {
@@ -82,6 +105,7 @@ namespace GoogleNas {
         private void CheckAt(Control parent,CheckBox box,int y) { box.Location=new Point(22,y); box.AutoSize=true; box.ForeColor=Theme.Ink; parent.Controls.Add(box); }
         private void SelectPage(int index) {
             if(index<0 || index>=pages.Count) throw new ArgumentOutOfRangeException("index");
+            if(resizeSidebar!=null) resizeSidebar();
             for(int i=0;i<pages.Count;i++) { pages[i].Visible=i==index; navigation[i].BackColor=i==index?Theme.Blue:Theme.Sidebar; navigation[i].ForeColor=i==index?Color.White:Theme.Ink; }
             pages[index].BringToFront(); pageTitle.Text=pageNames[index]; subtitle.Text=pageDescriptions[index]; breadcrumb.Text=index<2?"KHÔNG GIAN LÀM VIỆC":"KẾT NỐI & ỨNG DỤNG";
             FitCards(pages[index]); pages[index].PerformLayout(); HidePasswords();
@@ -116,8 +140,8 @@ namespace GoogleNas {
             Field(source,"Tên NAS hiển thị trên mạng",nasShare,166); CheckAt(source,nasReadOnly,238); Paragraph(source,"Bật chỉ đọc nếu bạn không muốn thiết bị khác sửa hoặc xóa file.",22,270,40);
             var address=Section(grid,false,"Trạng thái chia sẻ","Địa chỉ này dùng để gắn ổ từ thiết bị khác.",230);
             nasServer=Paragraph(address,"Chưa kiểm tra chia sẻ. Bấm Kiểm tra NAS để xem địa chỉ và trạng thái hiện tại.",22,91,70); nasServer.ForeColor=Theme.Ink;
-            Action(Buttons(address,172),"Kiểm tra NAS",false,async()=>{ var result=await nas.Admin("Inspect",NasValues()); var details=(Dictionary<string,object>)result["details"]; nasServer.Text=Convert.ToString(details["message"])+(details.ContainsKey("folder")?"\n"+details["folder"]:""); },"InspectNas");
-            Action((FlowLayoutPanel)address.Controls[address.Controls.Count-1],"Dừng chia sẻ",false,async()=>{ var result=await nas.Admin("Remove",NasValues()); nasServer.Text=Convert.ToString(((Dictionary<string,object>)result["details"])["message"]); },"StopNas",true);
+            Action(Buttons(address,172),"Kiểm tra",false,async()=>{ var result=await nas.Admin("Inspect",NasValues()); var details=(Dictionary<string,object>)result["details"]; nasServer.Text=Convert.ToString(details["message"])+(details.ContainsKey("folder")?"\n"+details["folder"]:""); },"InspectNas");
+            Action((FlowLayoutPanel)address.Controls[address.Controls.Count-1],"Dừng NAS",false,async()=>{ var result=await nas.Admin("Remove",NasValues()); nasServer.Text=Convert.ToString(((Dictionary<string,object>)result["details"])["message"]); },"StopNas",true);
             var access=Section(grid,true,"2. Tài khoản truy cập","Thiết bị khác dùng tài khoản này để mở NAS của bạn.",462);
             Field(access,"Tài khoản Windows / NAS",nasUser,94);
             serverReveal=InlineField(access,"Mật khẩu NAS",nasPassword,166,"Hiện",()=>{ if(nasPassword.UseSystemPasswordChar) { if(nasPassword.Text.Length==0) nasPassword.Text=nas.LoadPassword(nasUser.Text.Trim()); if(nasPassword.Text.Length==0) throw new Exception("Chưa lưu mật khẩu. Nhập mật khẩu hiện tại rồi bấm Lưu mật khẩu."); nasPassword.UseSystemPasswordChar=false; } else nasPassword.UseSystemPasswordChar=true; serverReveal.Text=nasPassword.UseSystemPasswordChar?"Hiện":"Ẩn"; return Task.FromResult(0); },"ServerReveal");
@@ -125,7 +149,7 @@ namespace GoogleNas {
             CheckAt(access,nasCreateUser,299); Paragraph(access,"Bỏ chọn nếu tài khoản đã tồn tại. Tài khoản mới cần mật khẩu từ 12 ký tự, có chữ hoa, thường, số và ký hiệu.",22,336,54);
             Action(Buttons(access,402),"Bật chia sẻ NAS",true,CreateLocalNas,"CreateNas");
             nasUser.TextChanged+=(a,b)=>{ nasPassword.Clear(); HidePasswords(); };
-            var help=Section(grid,true,"Truy cập từ xa qua Internet","Cài và đăng nhập Tailscale trên cả hai máy. Máy chứa ổ cần bật và không ở chế độ ngủ.",171);
+            var help=Section(grid,true,"NAS qua Internet","Cài và đăng nhập Tailscale trên cả hai máy. Máy chứa ổ cần bật và không ở chế độ ngủ.",171);
             Action(Buttons(help,111),"Thiết lập Tailscale",false,()=>{ SelectPage(3); return Task.FromResult(0); },"LocalNetwork");
         }
         private async Task CreateLocalNas() {
@@ -138,7 +162,7 @@ namespace GoogleNas {
         private void BuildRemotePage() {
             var grid=Columns(Page()); var target=Section(grid,false,"1. Chọn NAS từ máy khác","Nhập IP Tailscale và tên NAS được chia sẻ từ máy chứa ổ.",371);
             Field(target,"Máy chứa NAS · IP Tailscale",nasHost,94); Field(target,"Tên NAS từ xa",remoteShare,166); Field(target,"Ký tự ổ trên máy này",nasLetter,238);
-            Action(Buttons(target,310),"Gắn / kết nối lại",true,MountRemoteNas,"MountRemote"); Action((FlowLayoutPanel)target.Controls[target.Controls.Count-1],"Mở ổ NAS",false,async()=>{ var p=NasValues(); string expected=NasService.RemotePath(p.Host,p.RemoteShare); if(!string.Equals(await Task.Run(()=>NasService.MappedPath(p.Letter)),expected,StringComparison.OrdinalIgnoreCase)) throw new Exception("Gắn hoặc kết nối lại ổ NAS trước."); await NasService.Probe(p.Host); Process.Start("explorer.exe",Core.Quote(p.Letter+@":\")); },"OpenRemote");
+            Action(Buttons(target,310),"Gắn ổ NAS",true,MountRemoteNas,"MountRemote"); Action((FlowLayoutPanel)target.Controls[target.Controls.Count-1],"Mở ổ NAS",false,async()=>{ var p=NasValues(); string expected=NasService.RemotePath(p.Host,p.RemoteShare); if(!string.Equals(await Task.Run(()=>NasService.MappedPath(p.Letter)),expected,StringComparison.OrdinalIgnoreCase)) throw new Exception("Gắn hoặc kết nối lại ổ NAS trước."); await NasService.Probe(p.Host); Process.Start("explorer.exe",Core.Quote(p.Letter+@":\")); },"OpenRemote");
             var health=Section(grid,false,"Theo dõi kết nối","Tự kiểm tra mỗi phút khi CYAN NAS đang chạy.",218);
             nasConnection=Paragraph(health,"Thông tin kết nối sẽ hiển thị sau khi gắn ổ NAS.",22,91,63); nasConnection.ForeColor=Theme.Ink;
             Action(Buttons(health,162),"Ngắt ổ NAS",false,async()=>{ var p=NasValues(); await Task.Run(()=>NasService.Unmap(p.Host,p.RemoteShare,p.Letter)); nasConnection.Text="Đã ngắt ổ NAS "+p.Letter+":"; status.Text=nasConnection.Text; },"DisconnectRemote",true);
@@ -166,7 +190,7 @@ namespace GoogleNas {
             Action(row,"Đăng nhập",false,async()=>{ await nas.Login(text=>nasNetwork.Text=text); await RefreshNas(); },"LoginTailscale");
             Action(Buttons(network,237),"Kiểm tra kết nối",false,RefreshNas,"RefreshTailscale");
             Action(Buttons(network,290),"Chạy khi đăng xuất",false,async()=>{ await nas.Admin("Unattended",NasValues()); status.Text="Đã bật Tailscale chạy khi đăng xuất Windows."; },"Unattended");
-            var steps=Section(grid,true,"Thiết lập một lần trên cả hai máy","Thực hiện trên máy chia sẻ ổ và máy cần truy cập.",290);
+            var steps=Section(grid,true,"Thiết lập trên hai máy","Thực hiện trên máy chia sẻ ổ và máy cần truy cập.",290);
             Paragraph(steps,"1   Cài Tailscale trên mỗi máy.\n\n2   Đăng nhập cùng mạng Tailscale.\n\n3   Tạo NAS ở máy chứa ổ, sau đó gắn ổ ở máy còn lại.",22,94,160);
             var note=Section(grid,true,"Giữ máy chứa ổ bật","Giữ máy bật và kết nối Internet. Có thể bật Chạy khi đăng xuất để NAS tiếp tục truy cập được sau khi đăng xuất Windows.",141);
         }
@@ -184,7 +208,7 @@ namespace GoogleNas {
             var grid=Columns(Page()); var support=Section(grid,false,"Hỗ trợ & chẩn đoán","Nhật ký và dữ liệu của CYAN NAS trên máy này.",278);
             dependencies=Paragraph(support,"",22,94,48);
             var row=Buttons(support,153); Action(row,"Xem nhật ký",false,()=>{ if(!File.Exists(service.Log)) throw new Exception("Chưa có nhật ký."); Process.Start("notepad.exe",Core.Quote(service.Log)); return Task.FromResult(0); },"OpenLog");
-            Action(row,"Thư mục dữ liệu",false,()=>{ Open(service.Home); return Task.FromResult(0); },"OpenData");
+            Action(row,"Dữ liệu",false,()=>{ Open(service.Home); return Task.FromResult(0); },"OpenData");
             Action(Buttons(support,213),"Thoát an toàn",false,async()=>{ await service.Stop(); exiting=true; Close(); },"SafeExit");
             var credits=Section(grid,true,"CYAN NAS cho Windows","Hai cách kết nối dữ liệu: Google Drive và ổ cứng của bạn.",282);
             Paragraph(credits,"rclone · Nick Craig-Wood · MIT\n\nWinFsp · Bill Zissimopoulos\n\nNAS từ xa qua mạng Tailscale.",22,94,118);

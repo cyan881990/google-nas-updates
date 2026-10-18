@@ -16,7 +16,7 @@ if (-not (Test-Path -LiteralPath (Join-Path $extractDir 'app\runtime\rclone.exe'
 Write-Output 'Single EXE payload extraction and all checksums passed without downloads or system installation.'
 $compiler = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
 $testExe = Join-Path $testDir 'InstallerCoreTests.exe'
-& $compiler /nologo /target:exe /main:InstallerCoreTests "/out:$testExe" /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll /reference:System.IO.Compression.dll /reference:System.IO.Compression.FileSystem.dll /reference:Microsoft.CSharp.dll (Join-Path $projectRoot 'installer\Setup.cs') (Join-Path $projectRoot 'src\Core.cs') (Join-Path $projectRoot 'src\Theme.cs') (Join-Path $PSScriptRoot 'InstallerTests.cs')
+& $compiler /nologo /target:exe /main:InstallerCoreTests "/out:$testExe" /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll /reference:System.IO.Compression.dll /reference:System.IO.Compression.FileSystem.dll /reference:Microsoft.CSharp.dll (Join-Path $projectRoot 'installer\Setup.cs') (Join-Path $projectRoot 'src\Core.cs') (Join-Path $projectRoot 'src\Theme.cs') (Join-Path $projectRoot 'src\IconArtwork.cs') (Join-Path $PSScriptRoot 'InstallerTests.cs')
 if ($LASTEXITCODE -ne 0) { throw 'Installer tests compilation failed.' }
 & $testExe (Join-Path $testDir 'file-tests')
 if ($LASTEXITCODE -ne 0) { throw 'Installer file tests failed.' }

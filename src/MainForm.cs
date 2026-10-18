@@ -33,13 +33,13 @@ namespace GoogleNas {
             letter.DropDownStyle=ComboBoxStyle.DropDownList; for(char c='D';c<='Z';c++) letter.Items.Add(c.ToString()); letter.SelectedItem=settings.Letter;
             cache.Minimum=1; cache.Maximum=2048; cache.Value=settings.CacheGB;
             startup.Text="Khởi chạy cùng Windows"; startup.Checked=service.StartupEnabled();
-            autoMount.Text="Tự gắn Google Drive khi mở ứng dụng"; autoMount.Checked=settings.AutoMount;
+            autoMount.Text="Tự gắn ổ khi mở CYAN NAS"; autoMount.Checked=settings.AutoMount;
             autoUpdate.Text="Tự kiểm tra cập nhật mỗi 6 giờ"; autoUpdate.Checked=settings.AutoUpdate;
             var values=nas.Load(); nasFolder.Text=values.Folder; nasShare.Text=values.Share; nasUser.Text=values.User; nasPassword.UseSystemPasswordChar=true;
             nasHost.Text=values.Host; remoteShare.Text=values.RemoteShare; remoteUser.Text=values.RemoteUser; remotePassword.UseSystemPasswordChar=true;
             nasLetter.DropDownStyle=ComboBoxStyle.DropDownList; for(char c='D';c<='Z';c++) nasLetter.Items.Add(c.ToString()); nasLetter.SelectedItem=values.Letter;
             nasReadOnly.Text="Chỉ cho phép đọc file"; nasReadOnly.Checked=values.ReadOnly;
-            nasCreateUser.Text="Tạo tài khoản Windows mới cho NAS"; nasCreateUser.Checked=values.CreateUser;
+            nasCreateUser.Text="Tạo tài khoản mới cho NAS"; nasCreateUser.Checked=values.CreateUser;
             BuildDesktop(); SelectPage(0); DependencyStatus(); UpdateDriveActions(); ResumeLayout(true);
             if(previewOnly) return;
             var menu=new ContextMenuStrip(); menu.Items.Add("Mở CYAN NAS",null,(a,b)=>ShowWindow()); menu.Items.Add("Mở ổ đĩa",null,(a,b)=>{ Process.Start("explorer.exe",Core.Quote(settings.Letter+@":\")); });
@@ -104,6 +104,6 @@ namespace GoogleNas {
             foreach(Panel page in pages) FitCards(page);
         }
         private static void Open(string path) { Process.Start(new ProcessStartInfo(path) { UseShellExecute=true }); }
-        protected override void Dispose(bool disposing) { if(disposing) { tips.Dispose(); timer.Dispose(); if(tray!=null) tray.Dispose(); if(Icon!=null) Icon.Dispose(); } base.Dispose(disposing); }
+        protected override void Dispose(bool disposing) { if(disposing) { tips.Dispose(); if(brandImage!=null) brandImage.Dispose(); timer.Dispose(); if(tray!=null) tray.Dispose(); if(Icon!=null) Icon.Dispose(); } base.Dispose(disposing); }
     }
 }

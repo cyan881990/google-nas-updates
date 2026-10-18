@@ -10,13 +10,8 @@ namespace GoogleNas {
             var b = new MacButton { Text=text, AutoSize=true, MinimumSize=new Size(96,40), Padding=new Padding(10,4,10,4), FlatStyle=FlatStyle.Flat, Cursor=Cursors.Hand, BackColor=primary?Blue:Color.FromArgb(232,232,237), ForeColor=primary?Color.White:Ink, Font=new Font("Segoe UI",9.5f,FontStyle.Bold), Margin=new Padding(0,0,8,8), UseMnemonic=false };
             b.FlatAppearance.BorderColor=primary?Blue:Color.FromArgb(218,226,237); b.FlatAppearance.BorderSize=primary?0:1; return b;
         }
-        public static Icon Icon() {
-            using(var bmp=new Bitmap(32,32)) {
-                using(var g=Graphics.FromImage(bmp)) { g.SmoothingMode=SmoothingMode.AntiAlias; g.Clear(Color.Transparent); using(var brush=new SolidBrush(Blue)) g.FillEllipse(brush,1,1,30,30); using(var pen=new Pen(Color.White,2)) { g.DrawRectangle(pen,8,10,16,12); g.DrawLine(pen,8,17,24,17); g.DrawEllipse(pen,19,19,1,1); } }
-                IntPtr handle=bmp.GetHicon(); try { return (Icon)System.Drawing.Icon.FromHandle(handle).Clone(); } finally { DestroyIcon(handle); }
-            }
-        }
-        [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern bool DestroyIcon(IntPtr handle);
+        public static Icon Icon() { return IconArtwork.Create(); }
+
     }
     public class Card : Panel {
         private bool fitting;

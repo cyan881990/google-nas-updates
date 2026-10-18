@@ -25,7 +25,7 @@ using System.Reflection;
 $sourceFiles = @(Get-ChildItem -LiteralPath (Join-Path $projectRoot 'src') -Filter '*.cs' | ForEach-Object { $_.FullName })
 $outputExe = Join-Path $distDir 'GoogleNas.exe'
 $iconGenerator = Join-Path $buildDir 'GenerateIcon.exe'
-& $compiler /nologo /target:exe "/out:$iconGenerator" /reference:System.Drawing.dll (Join-Path $PSScriptRoot 'GenerateIcon.cs')
+& $compiler /nologo /target:exe "/out:$iconGenerator" /reference:System.Drawing.dll (Join-Path $PSScriptRoot 'GenerateIcon.cs') (Join-Path $projectRoot 'src\IconArtwork.cs')
 if ($LASTEXITCODE -ne 0) { throw 'Icon generator compilation failed.' }
 $appIcon = Join-Path $buildDir 'GoogleNas.ico'
 & $iconGenerator $appIcon

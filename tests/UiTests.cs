@@ -79,7 +79,7 @@ class UiTests {
                 foreach(var c in controls) if(c is Label && c.Text=="CYAN NAS") { if(c.Right>c.Parent.ClientSize.Width) throw new Exception("Sidebar title clipped at "+scale); }
                 // Hosted Windows desktops may have a 1024px maximum tracking size. Allow offscreen render viewports.
                 form.MinimumSize=Size.Empty; form.MaximumSize=new Size(8192,8192);
-                foreach(var viewport in new[]{new Size(1280,720),new Size(1366,768),new Size(1920,1080)}) {
+                foreach(var viewport in new[]{new Size(1024,768),new Size(1280,720),new Size(1366,768),new Size(1920,1080)}) {
                     form.Size=viewport; Application.DoEvents();
                     for(int page=0;page<6;page++) {
                         form.PreviewPage(page); Application.DoEvents();
@@ -126,7 +126,7 @@ class UiTests {
                 Console.WriteLine("Blocked network probe: UI reopen, bounded wait and single worker passed.");
                 Console.WriteLine("Close keeps taskbar entry; reopen restores existing window.");
             }
-            Console.WriteLine("Six desktop pages at 1280/1366/1920 widths and 100/125/150/200%: navigation, responsive columns, input/action bounds and header checks passed."); return 0;
+            Console.WriteLine("Six desktop pages at 1024/1280/1366/1920 widths and 100/125/150/200%: navigation, responsive columns, input/action bounds and header checks passed."); return 0;
         } catch(Exception e) { Console.Error.WriteLine(e); return 1; }
     }
 }
