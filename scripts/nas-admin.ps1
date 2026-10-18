@@ -6,6 +6,9 @@ function Assert-NasShareName([string]$Name) {
 function Assert-NasUserName([string]$Name) {
     if ($Name -notmatch '^[A-Za-z][A-Za-z0-9_-]{2,19}$') { throw 'Invalid NAS local account name.' }
 }
+function Assert-NasPassword([string]$Password) {
+    if ($Password.Length -lt 12 -or $Password -cnotmatch '[A-Z]' -or $Password -cnotmatch '[a-z]' -or $Password -notmatch '[0-9]' -or $Password -notmatch '[^A-Za-z0-9]') { throw 'Mật khẩu NAS cần ít nhất 12 ký tự, có chữ hoa, chữ thường, số và ký hiệu.' }
+}
 function Assert-NasFolder([string]$Folder) {
     $full = [IO.Path]::GetFullPath($Folder)
     $item = Get-Item -LiteralPath $full -Force
@@ -77,7 +80,7 @@ function Invoke-NasOperation($Data) {
             $account=Get-LocalUser -Name $profile.User -ErrorAction SilentlyContinue
             if ($profile.CreateUser -and $account) { throw 'Account already exists. Uncheck Create account to use its current password.' }
             if (-not $profile.CreateUser -and (-not $account -or -not $account.Enabled)) { throw 'Select an existing enabled local Windows account.' }
-            if ($profile.CreateUser -and ($Data.Password.Length -lt 12 -or $Data.Password -notmatch '[A-Z]' -or $Data.Password -notmatch '[a-z]' -or $Data.Password -notmatch '[0-9]' -or $Data.Password -notmatch '[^A-Za-z0-9]')) { throw 'New NAS password needs at least 12 characters, uppercase, lowercase, number and symbol.' }
+            if ($profile.CreateUser) { Assert-NasPassword $Data.Password }
             $oldAcl=Get-Acl -LiteralPath $folder; $oldSddl=$oldAcl.Sddl
             $createdAccount=$false; $createdShare=$false; $createdRule=$false; $aclChanged=$false
             $rule=Get-NasRuleName $profile.Share $Data.UserSid
@@ -107,6 +110,17 @@ function Invoke-NasOperation($Data) {
                 if ($createdAccount) { Remove-LocalUser -Name $profile.User -ErrorAction Continue }
                 throw $failure
             }
+        }
+        'SetNasPassword' {
+            Assert-NasShareName $profile.Share; Assert-NasUserName $profile.User; Assert-NasPassword $Data.Password
+            $account=Get-LocalUser -Name $profile.User -ErrorAction SilentlyContinue
+            if (-not $account -or -not $account.Enabled) { throw 'Chọn tài khoản NAS đã tồn tại và đang được bật trên máy này.' }
+            if ($account.SID.Value -eq $Data.UserSid -or $account.Description -notin @('CYAN NAS remote file access','Google NAS remote file access')) { throw 'Chỉ đặt lại mật khẩu tài khoản NAS riêng do tool tạo. Tool không đặt lại mật khẩu tài khoản Windows cá nhân.' }
+            $share=Get-SmbShare -Name $profile.Share -ErrorAction SilentlyContinue
+            if ($share -and $share.Description -ne $owner) { throw 'NAS này không thuộc tài khoản đang quản lý; chưa thay đổi mật khẩu.' }
+            $secure=ConvertTo-SecureString $Data.Password -AsPlainText -Force
+            Set-LocalUser -SID $account.SID -Password $secure
+            return @{ message='Đã đặt mật khẩu Windows mới cho tài khoản NAS. Chia sẻ và phiên đang mở được giữ nguyên.'; account=($env:COMPUTERNAME+'\'+$profile.User) }
         }
         'Remove' {
             Assert-NasShareName $profile.Share

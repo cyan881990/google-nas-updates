@@ -11,7 +11,8 @@ Set-Content -LiteralPath (Join-Path $fixture 'open.txt') -Value 'fixture'
 function Get-NasNetwork { return @{Address='100.100.0.1';Interface='Fixture Tailscale'} }
 function Get-SmbShare { param($Name,$ErrorAction) if($script:shares.ContainsKey($Name)){return $script:shares[$Name]} }
 function Get-LocalUser { param($Name,$ErrorAction) return $script:account }
-function New-LocalUser { param($Name,$Password,$Description,[switch]$PasswordNeverExpires) $script:account=[pscustomobject]@{Name=$Name;Enabled=$true;SID=(New-Object Security.Principal.SecurityIdentifier('S-1-5-21-123456789-123456789-123456789-1001'))};return $script:account }
+function New-LocalUser { param($Name,$Password,$Description,[switch]$PasswordNeverExpires) $script:account=[pscustomobject]@{Name=$Name;Enabled=$true;Description=$Description;SID=(New-Object Security.Principal.SecurityIdentifier('S-1-5-21-123456789-123456789-123456789-1001'))};return $script:account }
+function Set-LocalUser { param($SID,$Password) $script:passwordChanges++ }
 function Remove-LocalUser { param($Name,$ErrorAction) $script:account=$null }
 function Get-LocalGroup { param($SID) return [pscustomobject]@{Name='Fixture Users'} }
 function Add-LocalGroupMember { param($Group,$Member) }
@@ -40,7 +41,15 @@ try {
     Check ($result.path -eq '\\100.100.0.1\FixtureNas') 'Wrong NAS path'
     Check ($script:lastShare.EncryptData -and $script:lastShare.ChangeAccess -and -not $script:lastShare.ReadAccess) 'Write share permissions/encryption wrong'
     Check ($script:lastRule.LocalPort -eq 445 -and $script:lastRule.LocalAddress -eq '100.100.0.1' -and $script:lastRule.RemoteAddress -eq '100.64.0.0/10' -and $script:lastRule.InterfaceAlias -eq 'Fixture Tailscale') 'Firewall not scoped to Tailscale'
-    $data.Operation='Remove';$script:open=$true;Reject {Invoke-NasOperation $data} 'Open file removal accepted';Check ($script:shares.Count -eq 1) 'Open-file guard removed share'
+    $data.Operation='SetNasPassword';$script:open=$true;$script:passwordChanges=0
+    Invoke-NasOperation $data | Out-Null
+    Check ($script:passwordChanges -eq 1 -and $script:shares.Count -eq 1 -and $script:rules.Count -eq 1) 'Password change stopped share or changed firewall'
+    foreach($weak in @('lowercase!12345','UPPERCASE!12345','NoNumber!Password','NoSymbolPass123','Short!12')) { $data.Password=$weak; Reject {Invoke-NasOperation $data} 'Weak password reset accepted' }; $data.Password='FixturePass!12345'
+    $script:account.Description='Personal account';Reject {Invoke-NasOperation $data} 'Personal account password reset accepted';$script:account.Description='CYAN NAS remote file access'
+    $script:account.Enabled=$false;Reject {Invoke-NasOperation $data} 'Disabled account password reset accepted';$script:account.Enabled=$true
+    $requestSid=$data.UserSid;$data.UserSid=$script:account.SID.Value;Reject {Invoke-NasOperation $data} 'Operator Windows password reset accepted';$data.UserSid=$requestSid
+    Check ($script:passwordChanges -eq 1) 'Rejected reset still modified password'
+    $data.Operation='Remove';Reject {Invoke-NasOperation $data} 'Open file removal accepted';Check ($script:shares.Count -eq 1) 'Open-file guard removed share'
     $script:open=$false;$script:openDirectory=$true;Invoke-NasOperation $data | Out-Null;Check ($script:shares.Count -eq 0 -and $script:rules.Count -eq 0 -and $null -ne $script:account) 'Directory handle blocked removal or removal changed account';$script:openDirectory=$false
     $data.Operation='Create';$profile.CreateUser=$false;$profile.ReadOnly=$true;Invoke-NasOperation $data | Out-Null
     Check ($script:lastShare.ReadAccess -and -not $script:lastShare.ChangeAccess) 'Read-only share grants writes'
@@ -58,4 +67,3 @@ try {
     Reject {Invoke-NasOperation $data} 'Unrelated share removed';Check ($script:shares.Count -eq 1) 'Ownership guard failed'
     Write-Output 'NAS admin workflow: share permissions/encryption, Tailscale-only firewall, account/ACL rollback, open-file and ownership guards passed (network/account cmdlets mocked; fixture ACL real).'
 } finally { $restore=Get-Acl -LiteralPath $fixture;$restore.SetSecurityDescriptorSddlForm($originalAcl);Set-Acl -LiteralPath $fixture -AclObject $restore }
-

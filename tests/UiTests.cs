@@ -74,6 +74,11 @@ class UiTests {
                     if(!password.UseSystemPasswordChar) throw new Exception("Hide password button failed.");
                     user.Text="otherfixture"; if(password.Text.Length!=0 || !password.UseSystemPasswordChar) throw new Exception("Changing NAS account must clear displayed password.");
                     Console.WriteLine("NAS password UI: save, reload, show, hide and account-change clearing passed.");
+                    var shareName=(TextBox)typeof(MainForm).GetField("nasShare",fieldFlags).GetValue(form); string originalShare=shareName.Text;
+                    shareName.Text="EditedNewShare";
+                    var managed=(NasProfile)typeof(MainForm).GetMethod("ManagedNasValues",fieldFlags).Invoke(form,null);
+                    if(managed.Share!=originalShare) throw new Exception("Editing new NAS name must not redirect Stop to a different share.");
+                    shareName.Text=originalShare;
                     form.PreviewPage(2); Application.DoEvents();
                     var host=(ComboBox)typeof(MainForm).GetField("nasHost",fieldFlags).GetValue(form);
                     var share=(TextBox)typeof(MainForm).GetField("remoteShare",fieldFlags).GetValue(form);

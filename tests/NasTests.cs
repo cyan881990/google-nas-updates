@@ -61,6 +61,18 @@ class NasTests {
             Reject(()=>NasService.ResolveLogin(restarted.LoadRemoteLogin("100.64.0.1","Data_1"),@"NASPC\otheruser",""),"Changing account cannot reuse another password");
             Reject(()=>NasService.ValidateRemoteUser("user\nname"),"Remote account rejects control characters");
             Check(NasService.ResolveLogin(null,"","")==null,"Legacy Windows credential entry can be used without tool password");
+            int prompts=0; Func<NasLogin> prompt=()=>{ prompts++; return new NasLogin { User=@"NASPC\nasuser",Password="Windows!Prompt12" }; };
+            var chosen=NasService.ChooseLogin(null,"","",false,prompt);
+            Check(prompts==1 && chosen.Password=="Windows!Prompt12","First connection collects credentials through Windows UI");
+            chosen=NasService.ChooseLogin(chosen,"","",false,prompt);
+            Check(prompts==1 && chosen.User==@"NASPC\nasuser","Remembered connection never prompts again");
+            chosen=NasService.ChooseLogin(chosen,chosen.User,"",true,prompt);
+            Check(prompts==2,"Explicit login again always opens Windows UI");
+            chosen=NasService.ChooseLogin(null,"nasuser","Manual!Password12",false,prompt);
+            Check(prompts==2 && chosen.Password=="Manual!Password12","Inline credentials remain available without a redundant prompt");
+            Check(NasService.ChooseLogin(null,"","",true,()=>null)==null,"Cancel Windows login leaves mapping and storage unchanged");
+            NasService.ChooseLogin(new NasLogin { User="old",Password="Old!Password12" },"new","",false,prompt);
+            Check(prompts==3,"Changing user without a password prompts instead of silently reusing old credentials");
             warning=restarted.MapAndSave(IntPtr.Zero,remoteProfile,"","",(user,password)=>{},(host,user,password)=> { throw new Exception("Credential Manager policy denies storage"); });
             Check(warning.Contains("Windows") && restarted.LoadRemoteLogin("100.64.0.1","Data_1").Password=="Remote!Password12","Windows storage failure preserves encrypted tool fallback");
             var protectedPassword=File.ReadAllBytes(Path.Combine(args[0],"nas-passwords.dat"));

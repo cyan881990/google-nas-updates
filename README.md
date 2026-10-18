@@ -1,4 +1,6 @@
-# CYAN NAS cho Windows — v1.3.2
+# CYAN NAS cho Windows — v1.3.3
+
+v1.3.3 khôi phục hộp đăng nhập Windows Security khi gắn NAS lần đầu hoặc khi chưa có mật khẩu phù hợp; có nút Đăng nhập lại để chủ động mở lại. Thông tin chỉ được lưu bằng DPAPI và Credential Manager sau khi SMB kết nối thành công; bấm Hủy không thay thông tin cũ. Kiểm tra nền không mở hộp đăng nhập. Thêm Đặt lại mật khẩu Windows cho tài khoản NAS riêng do tool tạo, có xác nhận trước khi thực hiện và UAC; không cần dừng chia sẻ, không xóa tài khoản, không ngắt phiên đang mở. Chặn tài khoản cá nhân, tài khoản đang điều khiển tool, tài khoản bị vô hiệu hóa và NAS không thuộc người quản lý. Nút Dừng/Kiểm tra dùng tên NAS đã lưu, không dùng ô tên mới đang sửa; gắn NAS từ xa không ghi đè cấu hình chia sẻ local. Dừng NAS vẫn bảo vệ file đang mở và không xóa tài khoản.
 
 v1.3.2 bổ sung Kiểm tra mật khẩu Windows trực tiếp trên máy chia sẻ bằng đăng nhập mạng local, không đổi mật khẩu hoặc quyền. Thêm Sao chép tài khoản lấy tên máy Windows thật, có thể khác tên hiển thị Tailscale. Lỗi kết nối giữ mã Windows và phân biệt mật khẩu, thiếu quyền SMB/NTFS, khóa/vô hiệu hóa tài khoản, giới hạn đăng nhập, kết nối tài khoản khác. Không tự thử lại mật khẩu hoặc xóa credential/kết nối khác. Thành công kiểm tra mật khẩu local chưa xác nhận toàn bộ quyền truy cập SMB từ máy khác.
 

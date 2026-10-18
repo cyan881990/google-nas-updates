@@ -99,8 +99,32 @@ namespace GoogleNas {
             if(!string.IsNullOrWhiteSpace(user)) throw new Exception("Nhập mật khẩu cho tài khoản NAS mới. Mật khẩu đã lưu thuộc tài khoản khác.");
             return null; // Existing Windows Credential Manager entries remain usable without another dialog.
         }
+        public static NasLogin ChooseLogin(NasLogin saved,string user,string password,bool promptAgain,Func<NasLogin> prompt) {
+            if(!promptAgain && !string.IsNullOrEmpty(password)) { ValidateRemoteUser(user); return new NasLogin { User=user,Password=password }; }
+            if(!promptAgain && saved!=null && (string.IsNullOrWhiteSpace(user) || string.Equals(saved.User,user,StringComparison.OrdinalIgnoreCase))) return saved;
+            var login=prompt(); if(login!=null) { ValidateRemoteUser(login.User); if(string.IsNullOrEmpty(login.Password)) throw new Exception("Nhập mật khẩu Windows / NAS; không dùng mã PIN."); }
+            return login;
+        }
+        [StructLayout(LayoutKind.Sequential,CharSet=CharSet.Unicode)] private struct CredUiInfo {
+            public int Size; public IntPtr Owner; public string Message,Caption; public IntPtr Banner;
+        }
+        [DllImport("credui.dll",EntryPoint="CredUIPromptForCredentialsW",CharSet=CharSet.Unicode)] private static extern int PromptCredentials(ref CredUiInfo info,string target,IntPtr context,int error,StringBuilder user,int maxUser,StringBuilder password,int maxPassword,[MarshalAs(UnmanagedType.Bool)] ref bool save,int flags);
+        public static NasLogin PromptLogin(IntPtr owner,string host,string share,string account) {
+            string path=RemotePath(host,share);
+            var info=new CredUiInfo { Size=Marshal.SizeOf(typeof(CredUiInfo)),Owner=owner,Caption="Đăng nhập CYAN NAS",Message="Kết nối "+path+"\nDùng tài khoản Windows của máy chứa ổ. Thông tin chỉ được lưu sau khi kết nối thành công." };
+            var user=new StringBuilder(514); if(!string.IsNullOrWhiteSpace(account) && account.Length<514) user.Append(account);
+            var password=new StringBuilder(257); bool save=false;
+            try {
+                // Let Windows collect credentials; persistence is handled after SMB succeeds.
+                const int Generic=0x40000,AlwaysShow=0x80,DoNotPersist=0x2;
+                int error=PromptCredentials(ref info,host,IntPtr.Zero,0,user,user.Capacity,password,password.Capacity,ref save,Generic|AlwaysShow|DoNotPersist);
+                if(error==1223) return null;
+                if(error!=0) throw ConnectionError(error,path);
+                return new NasLogin { User=user.ToString(),Password=password.ToString() };
+            } finally { for(int i=0;i<password.Length;i++) password[i]='\0'; password.Length=0; }
+        }
         internal string MapAndSave(IntPtr owner,NasProfile profile,string user,string password,Action<string,string> connect=null,Action<string,string,string> saveWindows=null) {
-            var login=ResolveLogin(LoadRemoteLogin(profile.Host,profile.RemoteShare),user,password);
+            var login=ResolveLogin(string.IsNullOrEmpty(password)?LoadRemoteLogin(profile.Host,profile.RemoteShare):null,user,password);
             if(connect==null) Map(owner,profile.Host,profile.RemoteShare,profile.Letter,login==null?null:login.User,login==null?null:login.Password);
             else connect(login==null?null:login.User,login==null?null:login.Password);
             if(login==null) return "";

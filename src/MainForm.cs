@@ -14,6 +14,7 @@ namespace GoogleNas {
         private ComboBox nasHost=new ComboBox(), nasLetter=new ComboBox(); private CheckBox nasReadOnly=new CheckBox(), nasCreateUser=new CheckBox();
         private Label nasNetwork, nasServer, nasConnection;
         private Settings settings;
+        private string managedShare;
         private TextBox remote=new TextBox(), folder=new TextBox();
         private ComboBox letter=new ComboBox(); private NumericUpDown cache=new NumericUpDown();
         private CheckBox startup=new CheckBox(), autoMount=new CheckBox(), autoUpdate=new CheckBox();
@@ -35,7 +36,7 @@ namespace GoogleNas {
             startup.Text="Khởi chạy cùng Windows"; startup.Checked=service.StartupEnabled();
             autoMount.Text="Tự gắn ổ khi mở CYAN NAS"; autoMount.Checked=settings.AutoMount;
             autoUpdate.Text="Tự kiểm tra cập nhật mỗi 6 giờ"; autoUpdate.Checked=settings.AutoUpdate;
-            var values=nas.Load(); nasFolder.Text=values.Folder; nasShare.Text=values.Share; nasUser.Text=values.User; nasPassword.UseSystemPasswordChar=true;
+            var values=nas.Load(); managedShare=values.Share; nasFolder.Text=values.Folder; nasShare.Text=values.Share; nasUser.Text=values.User; nasPassword.UseSystemPasswordChar=true;
             nasHost.Text=values.Host; remoteShare.Text=values.RemoteShare; remoteUser.Text=values.RemoteUser; remotePassword.UseSystemPasswordChar=true;
             nasLetter.DropDownStyle=ComboBoxStyle.DropDownList; for(char c='D';c<='Z';c++) nasLetter.Items.Add(c.ToString()); nasLetter.SelectedItem=values.Letter;
             nasReadOnly.Text="Chỉ cho phép đọc file"; nasReadOnly.Checked=values.ReadOnly;
