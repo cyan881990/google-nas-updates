@@ -15,6 +15,15 @@ class NasTests {
             Check(NasService.RemotePath("100.64.0.1","Data_1")==@"\\100.64.0.1\Data_1","UNC generation");
             foreach(string bad in new[]{"C$","../x","a b","a;whoami","a\nb",""}) Reject(()=>NasService.ValidateShare(bad),"Share validation");
             Reject(()=>NasService.ValidateUser("Administrator;net user"),"User injection"); Reject(()=>NasService.ValidateLetter("C"),"System drive mapping");
+            Check(NasService.LocalAccount("nasuser")==Environment.MachineName+@"\nasuser","Copy uses actual Windows computer name, not Tailscale display name");
+            int passwordChecks=0;
+            NasService.CheckLocalPassword("nasuser","Fixture!Local12",(user,password)=>{ passwordChecks++; Check(user=="nasuser" && password=="Fixture!Local12","Local check receives exact password without trimming"); return 0; });
+            Reject(()=>NasService.CheckLocalPassword("nasuser","",(user,password)=>{ passwordChecks++; return 0; }),"Empty password never reaches Windows");
+            Check(passwordChecks==1,"Password checks require explicit nonempty input");
+            try { NasService.CheckLocalPassword("nasuser","Rejected!Local12",(user,password)=>1326); throw new Exception("Expected logon rejection"); }
+            catch(System.ComponentModel.Win32Exception e) { Check(e.NativeErrorCode==1326 && e.Message.Contains("1326") && !e.Message.Contains("Rejected!Local12"),"Windows logon code preserved without password disclosure"); }
+            Check(NasService.ConnectionError(5,"NAS").Message.Contains("NTFS") && !NasService.ConnectionError(5,"NAS").Message.Contains("không chấp nhận tài khoản"),"Access denied distinguished from incorrect password");
+            foreach(int code in new[]{86,1219,1331,1909,1330,1907,1385,1327,67,53,64,1223}) Check(NasService.ConnectionError(code,"NAS").NativeErrorCode==code && NasService.ConnectionError(code,"NAS").Message.Contains(code.ToString()),"Precise Windows status retained: "+code);
             Check(NasService.ConnectionPath(1201,@"\\100.64.0.1\Data_1")==@"\\100.64.0.1\Data_1","Offline persistent mapping keeps UNC");
             Check(NasService.ConnectionPath(2250,@"\\100.64.0.1\Data_1")==null,"Missing mapping is not trusted");
             NasService.ValidateMappingTarget(@"\\100.64.0.1\Data_1",@"\\100.64.0.1\data_1",true,"N");

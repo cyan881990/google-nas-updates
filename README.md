@@ -1,4 +1,6 @@
-# CYAN NAS cho Windows — v1.3.1
+# CYAN NAS cho Windows — v1.3.2
+
+v1.3.2 bổ sung Kiểm tra mật khẩu Windows trực tiếp trên máy chia sẻ bằng đăng nhập mạng local, không đổi mật khẩu hoặc quyền. Thêm Sao chép tài khoản lấy tên máy Windows thật, có thể khác tên hiển thị Tailscale. Lỗi kết nối giữ mã Windows và phân biệt mật khẩu, thiếu quyền SMB/NTFS, khóa/vô hiệu hóa tài khoản, giới hạn đăng nhập, kết nối tài khoản khác. Không tự thử lại mật khẩu hoặc xóa credential/kết nối khác. Thành công kiểm tra mật khẩu local chưa xác nhận toàn bộ quyền truy cập SMB từ máy khác.
 
 v1.3.1 sửa lỗi giao diện khi Windows phóng to DPI: chỉ co giãn một lần lúc khởi động, chờ co giãn toàn bộ cây control rồi mới sắp xếp thẻ. Khắc phục ô nhập biến mất/co nhỏ, thẻ kéo dài và thanh bên bị cắt chữ. Kiểm thử thêm co giãn trước lần mở cửa sổ đầu tiên và dùng manifest DPI thật của app.
 

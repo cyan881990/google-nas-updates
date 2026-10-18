@@ -53,6 +53,38 @@ namespace GoogleNas {
         public static void ValidateRemoteUser(string user) {
             if(string.IsNullOrWhiteSpace(user) || user.Length>513 || user.Any(char.IsControl)) throw new Exception("Nhập tài khoản NAS dạng TEN-MAY\\taikhoan hoặc taikhoan.");
         }
+        public static string LocalAccount(string user) { ValidateUser(user); return Environment.MachineName+"\\"+user; }
+        [DllImport("advapi32.dll",EntryPoint="LogonUserW",CharSet=CharSet.Unicode,SetLastError=true)] [return:MarshalAs(UnmanagedType.Bool)] private static extern bool LogonUser(string user,string domain,string password,int logonType,int provider,out IntPtr token);
+        [DllImport("kernel32.dll",SetLastError=true)] [return:MarshalAs(UnmanagedType.Bool)] private static extern bool CloseHandle(IntPtr handle);
+        private static int CheckWindowsPassword(string user,string password) {
+            IntPtr token=IntPtr.Zero;
+            try { return LogonUser(user,Environment.MachineName,password,3,0,out token)?0:Marshal.GetLastWin32Error(); }
+            finally { if(token!=IntPtr.Zero) CloseHandle(token); }
+        }
+        public static void CheckLocalPassword(string user,string password,Func<string,string,int> check=null) {
+            ValidateUser(user); if(string.IsNullOrEmpty(password)) throw new Exception("Nhập mật khẩu Windows hiện tại của tài khoản NAS để kiểm tra.");
+            int error=(check??CheckWindowsPassword)(user,password);
+            if(error!=0) throw ConnectionError(error,LocalAccount(user));
+        }
+        public static Win32Exception ConnectionError(int error,string target) {
+            string help;
+            switch(error) {
+                case 86: case 1326: help="Windows không chấp nhận tài khoản hoặc mật khẩu. Dùng tên tài khoản được sao chép từ máy chia sẻ và mật khẩu Windows hiện tại. Lưu mật khẩu trong tool không đổi mật khẩu Windows."; break;
+                case 5: help="Windows từ chối truy cập. Kiểm tra quyền chia sẻ SMB, quyền thư mục NTFS và chính sách đăng nhập mạng của tài khoản trên máy chứa ổ; mã này không xác định riêng lỗi mật khẩu."; break;
+                case 1219: help="Đã có kết nối đến máy NAS bằng tài khoản khác. Đóng file và ngắt đúng kết nối cũ trong Windows trước khi dùng tài khoản mới."; break;
+                case 1331: help="Tài khoản Windows trên máy chứa ổ đang bị vô hiệu hóa."; break;
+                case 1909: help="Tài khoản Windows đang bị khóa. Dừng thử mật khẩu và mở khóa tài khoản trên máy chứa ổ."; break;
+                case 1330: help="Mật khẩu Windows đã hết hạn. Đổi mật khẩu trên máy chứa ổ rồi nhập lại trong tool."; break;
+                case 1907: help="Windows yêu cầu đổi mật khẩu tài khoản trước khi đăng nhập qua mạng."; break;
+                case 1385: help="Tài khoản không được phép đăng nhập qua mạng trên máy chứa ổ. Kiểm tra quyền Access this computer from the network và Deny access to this computer from the network."; break;
+                case 1327: help="Windows chặn đăng nhập do giới hạn tài khoản. Kiểm tra mật khẩu không trống và chính sách tài khoản trên máy chứa ổ."; break;
+                case 67: help="Không tìm thấy tên chia sẻ. Kiểm tra Tên NAS từ xa trên máy chứa ổ."; break;
+                case 53: case 64: help="Không truy cập được máy NAS. Kiểm tra máy chứa ổ đang bật, Tailscale và kết nối SMB."; break;
+                case 1223: help="Đã hủy kết nối NAS."; break;
+                default: help="Windows không hoàn tất kết nối NAS. Kiểm tra chi tiết lỗi bên dưới."; break;
+            }
+            return new Win32Exception(error,"Mã Windows "+error+" · "+target+"\n"+help+"\n"+new Win32Exception(error).Message);
+        }
         private static string LoginKey(string host,string share) { return "remote:"+RemotePath(host,share).ToLowerInvariant(); }
         public NasLogin LoadRemoteLogin(string host,string share) {
             string value; return Passwords().TryGetValue(LoginKey(host,share),out value)?Core.Json.Deserialize<NasLogin>(value):null;
@@ -123,7 +155,7 @@ namespace GoogleNas {
                         // Cached Windows credentials only: no background dialog, force-unmap or file closure.
                         var login=LoadRemoteLogin(p.Host,p.RemoteShare);
                         int error=WNetAddConnection3(IntPtr.Zero,ref resource,login==null?null:login.Password,login==null?null:login.User,0);
-                        if(error!=0) throw new Win32Exception(error,"Bấm Gắn / kết nối lại để kiểm tra tài khoản. "+new Win32Exception(error).Message);
+                        if(error!=0) throw ConnectionError(error,expected);
                         if(!Directory.Exists(p.Letter+@":\")) throw new IOException("Windows chưa truy cập được thư mục NAS.");
                     }
                     messages.Add(p.Letter+": đã kết nối");
@@ -210,10 +242,7 @@ namespace GoogleNas {
             ValidateMappingTarget(MappedPath(letter),path,DriveInfo.GetDrives().Any(d=>d.Name.StartsWith(letter+":",StringComparison.OrdinalIgnoreCase)),letter);
             var resource=new NetResource { Type=1,LocalName=letter+":",RemoteName=path };
             int error=WNetAddConnection3(owner,ref resource,password,username,1);
-            if(error==1223) throw new Exception("Đã hủy kết nối NAS.");
-            if(error==1219) throw new Exception("Máy này đang kết nối NAS bằng tài khoản khác. Ngắt kết nối đó trong Windows trước khi dùng tài khoản mới.");
-            if(error==86 || error==1326 || error==5) throw new Exception("Tài khoản/mật khẩu NAS chưa đúng hoặc chưa có quyền truy cập. Nhập thông tin đăng nhập ở mục Gắn ổ từ máy khác rồi thử lại.");
-            if(error!=0) throw new Win32Exception(error,"Không gắn được NAS: "+new Win32Exception(error).Message);
+            if(error!=0) throw ConnectionError(error,path);
         }
         public static void Unmap(string host,string share,string letter) {
             string expected=RemotePath(host,share),actual=MappedPath(letter);
