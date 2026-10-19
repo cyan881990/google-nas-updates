@@ -1,4 +1,6 @@
-# CYAN NAS cho Windows — v1.4.1
+# CYAN NAS cho Windows — v1.4.2
+
+v1.4.2 chuẩn hóa toàn bộ nhóm nút desktop: cao 40 px ở DPI 100%, rộng bằng nhau trong nhóm, cách nhau 10 px, chữ một dòng và không tự đổi kích thước theo trạng thái. Nhóm danh sách chỉ chuyển thành một cột đồng đều khi cửa sổ thực sự hẹp. Gom Lưu/Kiểm tra mật khẩu cùng hàng, tách Đặt lại mật khẩu; gom các thao tác Tailscale thành hai hàng. Dừng NAS chỉ còn tại danh sách, bỏ nút trùng; trạng thái chia sẻ gọn hai hàng thao tác. Nút chính xanh, dừng/ngắt/bỏ lưu đỏ, thao tác phụ trung tính. Kiểm thử kích thước, khoảng cách, độ rộng chữ và DPI 100–200% trên cả sáu trang.
 
 v1.4.1 nhận sự kiện thay đổi địa chỉ mạng, mất/có mạng và máy thức dậy; gộp sự kiện trong 3 giây rồi kiểm tra ngay các NAS tự kết nối. Lỗi mạng tạm thời thử lại sau 10 giây thay vì 60 giây, dùng đăng nhập đã lưu. Xử lý ký tự ổ SMB cũ (mã 85) chỉ khi đúng mapping của NAS và không ép đóng file đang mở. Mỗi ổ giữ một worker, kể cả khi đổi mạng liên tục. Không tự bật lại ổ đã Tạm ngắt hoặc cấu hình chưa xác thực; không mở hộp đăng nhập Windows. Kiểm thử mô phỏng mất Wi-Fi, mạng phục hồi, mapping cũ, ổ bận và xung đột ký tự ổ.
 

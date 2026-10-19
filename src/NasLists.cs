@@ -33,12 +33,12 @@ namespace GoogleNas {
         public NasListSection(Func<float> scale) { factor=scale; Height=320; }
         protected override void OnLayout(LayoutEventArgs e) {
             base.OnLayout(e); if(arranging || factor==null || List==null || Toolbar==null || Theme.LayoutScaling) return; arranging=true;
-            try { float s=factor(); int pad=(int)(22*s),width=Math.Max(1,Width-pad*2),h=(int)((List.Items.Count==0?28:Math.Min(3,List.Items.Count)*64)*s); List.SetBounds(pad,(int)(84*s),width,h); if(Empty!=null) Empty.Bounds=List.Bounds; int line=0,lineHeight=0,toolbarHeight=0; foreach(Control button in Toolbar.Controls) { Size size=button.GetPreferredSize(Size.Empty); int bw=size.Width+button.Margin.Horizontal,bh=size.Height+button.Margin.Vertical; if(line>0 && line+bw>width) { toolbarHeight+=lineHeight; line=0; lineHeight=0; } line+=bw; lineHeight=Math.Max(lineHeight,bh); } toolbarHeight=Math.Max((int)(48*s),toolbarHeight+lineHeight); Toolbar.SetBounds(pad,List.Bottom+(int)(12*s),width,toolbarHeight); Height=Toolbar.Bottom+(int)(10*s); } finally { arranging=false; }
+            try { float s=factor(); int pad=(int)(22*s),width=Math.Max(1,Width-pad*2),h=(int)((List.Items.Count==0?28:Math.Min(3,List.Items.Count)*64)*s); List.SetBounds(pad,(int)(84*s),width,h); if(Empty!=null) Empty.Bounds=List.Bounds; var actions=(ActionBar)Toolbar; int toolbarHeight=actions.RequiredHeight(width); Toolbar.SetBounds(pad,List.Bottom+(int)(12*s),width,toolbarHeight); Height=Toolbar.Bottom+(int)(10*s); } finally { arranging=false; }
         }
     }
     public partial class MainForm {
         private NasListBox localNasList,remoteNasList;
-        private Button createNasButton,stopNasButton,remoteMountButton,remoteOpenButton,remoteStopButton;
+        private Button createNasButton,remoteMountButton,remoteOpenButton,remoteStopButton;
         private Button listStopButton;
         private readonly Dictionary<string,NasItemState> localShareStates=new Dictionary<string,NasItemState>(StringComparer.OrdinalIgnoreCase);
         private bool rebindingNas,catalogRefreshing,catalogRefreshAgain,nasPreview;
@@ -49,7 +49,7 @@ namespace GoogleNas {
             TextAt(card,local?"Ổ đang chia sẻ trên máy này":"Ổ NAS đã lưu",14,true,Theme.Ink,22,18);
             Paragraph(card,local?"Chọn một NAS để xem trạng thái và thao tác. Thêm ổ mới bằng Chia sẻ mới.":"Các ổ đã gắn thành công sẽ tự kết nối khi mở tool. Tạm ngắt để dừng tự gắn.",22,49,32);
             var list=new NasListBox(()=>UiScale) { Name=local?"LocalNasItems":"RemoteNasItems",AccessibleName=local?"Danh sách NAS đang chia sẻ":"Danh sách ổ NAS đã lưu",Anchor=AnchorStyles.Top|AnchorStyles.Left|AnchorStyles.Right };
-            card.List=list; card.Controls.Add(list); var row=Buttons(card,274); row.WrapContents=true; card.Toolbar=row;
+            card.List=list; card.Controls.Add(list); var row=Buttons(card,274); ((ActionBar)row).StackWhenNarrow=true; card.Toolbar=row;
             card.Empty=Paragraph(card,"Chưa có ổ NAS trong danh sách.",22,84,28);
             if(local) {
                 localNasList=list; Action(row,"Chia sẻ mới",true,()=>{ NewLocalShare(); return Task.FromResult(0); },"NewLocalNas");
@@ -102,8 +102,7 @@ namespace GoogleNas {
             string name=nasShare.Text.Trim(); var state=ShareState(name);
             createNasButton.Enabled=state.State=="Stopped"; createNasButton.Text=state.State=="Enabled"?"Đã bật chia sẻ":"Bật chia sẻ NAS";
             bool sharing=state.State=="Enabled"; nasFolder.Enabled=!sharing; nasShare.Enabled=!sharing; nasReadOnly.Enabled=!sharing; nasUser.Enabled=!sharing; nasCreateUser.Enabled=!sharing;
-            stopNasButton.Enabled=localNasList.SelectedItem!=null && ShareState(managedShare).State=="Enabled";
-            listStopButton.Enabled=stopNasButton.Enabled;
+            listStopButton.Enabled=localNasList.SelectedItem!=null && ShareState(managedShare).State=="Enabled";
             if(remoteMountButton!=null) {
                 var p=NasValues(); var connection=nas.ConnectionState(p.Letter??""); bool same=nas.Connections().Any(x=>x.Letter==p.Letter && x.Host==p.Host && x.RemoteShare==p.RemoteShare);
                 bool connected=same && connection.State=="Connected";

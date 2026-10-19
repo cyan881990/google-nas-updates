@@ -19,7 +19,7 @@ namespace GoogleNas {
     }
     public static class Core {
         // Desktop UI and multiresolution icon release; preserve the existing data and update identifiers during upgrades.
-        public const string Version = "1.4.1";
+        public const string Version = "1.4.2";
         public const string UpdateRepository = "cyan881990/google-nas-updates";
         public static string EffectiveRepository(string legacyRepository) { return UpdateRepository.Length>0?UpdateRepository:(legacyRepository??""); }
         public static JavaScriptSerializer Json { get { return new JavaScriptSerializer(); } }

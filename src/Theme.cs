@@ -35,7 +35,7 @@ namespace GoogleNas {
             Color fill=Enabled?BackColor:Color.FromArgb(235,235,239); if(Enabled && (pressed || hover)) { float f=pressed?0.91f:0.96f; fill=Color.FromArgb((int)(fill.R*f),(int)(fill.G*f),(int)(fill.B*f)); }
             using(var shape=Round(new RectangleF(0.5f,0.5f,Width-1,Height-1),8*DeviceDpi/96f)) { using(var brush=new SolidBrush(fill)) e.Graphics.FillPath(brush,shape); if(Focused && ShowFocusCues) using(var pen=new Pen(Theme.Blue,2)) e.Graphics.DrawPath(pen,shape); }
             var bounds=new Rectangle(Padding.Left+2,Padding.Top,Math.Max(1,Width-Padding.Horizontal-4),Math.Max(1,Height-Padding.Vertical));
-            var flags=TextFormatFlags.VerticalCenter|TextFormatFlags.EndEllipsis|TextFormatFlags.NoPrefix;
+            var flags=TextFormatFlags.VerticalCenter|TextFormatFlags.SingleLine|TextFormatFlags.EndEllipsis|TextFormatFlags.NoPrefix;
             flags|=TextAlign==ContentAlignment.MiddleLeft?TextFormatFlags.Left:TextFormatFlags.HorizontalCenter;
             TextRenderer.DrawText(e.Graphics,Text,Font,bounds,Enabled?ForeColor:Color.FromArgb(147,147,153),flags);
         }

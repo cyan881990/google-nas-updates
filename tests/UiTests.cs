@@ -33,6 +33,19 @@ class UiTests {
             if(c.Parent is Card && (c.Anchor&AnchorStyles.Right)!=0 && Math.Abs(c.Right-(c.Parent.ClientSize.Width-c.Parent.Padding.Right))>3) throw new Exception("Card field collapsed during DPI layout: "+c.Name+" "+c.Bounds);
             if(c is InputSurface && c.Width<100*scale) throw new Exception("Input surface collapsed: "+c.Bounds);
         }
+        foreach(var control in All(root)) {
+            var bar=control as ActionBar; if(bar==null || !bar.Visible || bar.Controls.Count==0) continue;
+            int expectedHeight=(int)Math.Round(40*scale),gap=(int)Math.Round(10*scale);
+            bool stacked=bar.RequiredHeight(bar.Width)>expectedHeight; int width=bar.Controls[0].Width;
+            if(bar.WrapContents || bar.Height<bar.RequiredHeight(bar.Width)) throw new Exception("Action group must have an explicit layout with enough height: "+bar.Name);
+            for(int index=0;index<bar.Controls.Count;index++) {
+                var button=bar.Controls[index];
+                if(button.AutoSize || button.Width!=width || button.Height!=expectedHeight) throw new Exception("Actions in a group must have equal widths and fixed heights: "+button.Name);
+                if(button.Top!=(stacked?index*(expectedHeight+gap):0) || button.Left!=(stacked?0:index*(width+gap))) throw new Exception("Actions must use a consistent gap and alignment: "+button.Name);
+                int textWidth=TextRenderer.MeasureText(button.Text,button.Font,Size.Empty,TextFormatFlags.SingleLine|TextFormatFlags.NoPrefix).Width;
+                if(textWidth>button.Width-button.Padding.Horizontal-4) throw new Exception("Action caption must fit on one line: "+button.Name+" text="+textWidth+" available="+(button.Width-button.Padding.Horizontal-4)+" scale="+scale+" viewport="+viewport);
+            }
+        }
         var grid=(DashboardColumns)root.Controls[0];
         if(form.ClientSize.Width>=1800 && scale==1 && !grid.IsWide) throw new Exception("Wide PC screen must use two columns: actual="+form.Size+" grid="+grid.Size);
         if(viewport.Width==1280 && scale==2 && grid.IsWide) throw new Exception("Compact high DPI screen must stack columns: grid="+grid.Size+" form="+form.Size+" root="+root.Size+" factor="+typeof(MainForm).GetProperty("UiScale",flags).GetValue(form,null));
