@@ -42,7 +42,7 @@ namespace GoogleNas {
         private Button listStopButton;
         private readonly Dictionary<string,NasItemState> localShareStates=new Dictionary<string,NasItemState>(StringComparer.OrdinalIgnoreCase);
         private bool rebindingNas,catalogRefreshing,catalogRefreshAgain,nasPreview;
-        private int catalogRequest;
+        private readonly Timer catalogTimer=new Timer { Interval=250 };
         private NasListSection BuildNasList(DashboardColumns grid,bool local) {
             var card=new NasListSection(()=>UiScale) { Name=local?"LocalNasList":"RemoteNasList",Width=940 };
             grid.AddFull(card);
@@ -92,9 +92,10 @@ namespace GoogleNas {
                 } while(catalogRefreshAgain && !IsDisposed);
             } finally { catalogRefreshing=false; }
         }
-        private async void QueueNasCatalogRefresh() {
-            int request=++catalogRequest; await Task.Delay(250); if(request!=catalogRequest || IsDisposed) return;
-            try { await RefreshNasCatalogs(); } catch(Exception e) { if(!IsDisposed) status.Text="Kiểm tra NAS: "+e.Message; }
+        private void QueueNasCatalogRefresh() { if(IsDisposed || Disposing) return; catalogTimer.Stop(); catalogTimer.Start(); }
+        private async void NasCatalogRefreshTick(object sender,EventArgs e) {
+            catalogTimer.Stop(); if(IsDisposed || Disposing) return;
+            try { await RefreshNasCatalogs(); } catch(Exception error) { if(!IsDisposed) status.Text="Kiểm tra NAS: "+error.Message; }
         }
         private void UpdateNasActions() {
             if(createNasButton==null || busy) return;

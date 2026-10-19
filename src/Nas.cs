@@ -221,14 +221,16 @@ namespace GoogleNas {
     public class NasConnectionMonitor {
         private Task<string> pending;
         private DateTime next=DateTime.MinValue;
+        private bool wakeRequested;
+        public void Wake() { wakeRequested=true; next=DateTime.MinValue; }
         // One worker maximum even when a Windows network call takes longer than expected.
-        public async Task<string> Poll(Func<Task<string>> work) {
+        public async Task<string> Poll(Func<Task<string>> work,Func<int> retrySeconds=null) {
             if(pending==null) {
                 if(DateTime.UtcNow<next) return null;
-                pending=Task.Run(work);
+                wakeRequested=false; pending=Task.Run(work);
             }
             if(await Task.WhenAny(pending,Task.Delay(100))!=pending) return null;
-            try { return await pending; } finally { pending=null; next=DateTime.UtcNow.AddSeconds(60); }
+            try { return await pending; } finally { pending=null; next=wakeRequested?DateTime.MinValue:DateTime.UtcNow.AddSeconds(retrySeconds==null?60:retrySeconds()); }
         }
         public async Task<bool> WaitIdle() { var work=pending; return work==null || await Task.WhenAny(work,Task.Delay(5000))==work; }
     }

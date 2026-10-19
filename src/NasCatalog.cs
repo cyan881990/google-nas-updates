@@ -15,12 +15,13 @@ namespace GoogleNas {
         internal Func<string,bool> Occupied,Ready;
         internal Func<string,Task> Probe;
         internal Action<NasProfile,NasLogin> Connect;
+        internal Action<NasProfile> Disconnect;
     }
     public partial class NasService {
         private readonly NasRestoreOperations restore;
         private static NasRestoreOperations NativeRestoreOperations() {
             return new NasRestoreOperations {
-                Mapping=MappedPath,Occupied=letter=>DriveInfo.GetDrives().Any(d=>d.Name.StartsWith(letter+":",StringComparison.OrdinalIgnoreCase)),Ready=path=>Directory.Exists(path),Probe=Probe,
+                Mapping=MappedPath,Occupied=letter=>DriveInfo.GetDrives().Any(d=>d.Name.StartsWith(letter+":",StringComparison.OrdinalIgnoreCase)),Ready=path=>Directory.Exists(path),Probe=Probe,Disconnect=p=>Unmap(p.Host,p.RemoteShare,p.Letter),
                 Connect=(p,login)=>{ var resource=new NetResource { Type=1,LocalName=p.Letter+":",RemoteName=RemotePath(p.Host,p.RemoteShare) }; int error=WNetAddConnection3(IntPtr.Zero,ref resource,login==null?null:login.Password,login==null?null:login.User,1); if(error!=0) throw ConnectionError(error,resource.RemoteName); }
             };
         }
@@ -76,6 +77,25 @@ namespace GoogleNas {
         private void SetConnectionState(string letter,string state,string message) { lock(catalogGate) connectionStates[letter]=new NasItemState { Key=letter,State=state,Message=message }; }
         public void MarkConnected(string letter) { SetConnectionState(letter,"Connected","Đã kết nối · tự gắn khi mở tool"); }
         public void MarkConfigurationSaved(string letter) { SetConnectionState(letter,"Saved","Đã lưu · bấm Gắn ổ NAS để xác thực"); }
+        // UI-thread wake-up preserves a single Windows worker per drive.
+        public void NetworkChanged() {
+            foreach(var p in Connections().Where(x=>x.AutoConnect)) {
+                lock(catalogGate) { NasConnectionMonitor worker; if(workers.TryGetValue(p.Letter,out worker)) worker.Wake(); }
+                SetConnectionState(p.Letter,"Connecting","Mạng vừa thay đổi · đang chờ NAS kết nối lại");
+            }
+        }
+        private void RestoreConnection(NasProfile p,NasLogin login) {
+            try { restore.Connect(p,login); }
+            catch(Win32Exception e) {
+                // Windows may retain the letter of a dead SMB mapping after a Wi-Fi switch.
+                // Detach only our exact mapping without forcing open files closed.
+                string expected=RemotePath(p.Host,p.RemoteShare);
+                if(e.NativeErrorCode!=85 || restore.Disconnect==null || !StillAutomatic(p) || !CanMaintain(restore.Mapping(p.Letter),expected) || restore.Ready(p.Letter+@":\")) throw;
+                restore.Disconnect(p);
+                if(!StillAutomatic(p) || !CanRestore(restore.Mapping(p.Letter),expected,restore.Occupied(p.Letter))) return;
+                restore.Connect(p,login);
+            }
+        }
         public async Task<string> MaintainConnections() {
             var polls=new List<Task<string>>();
             foreach(var item in Connections()) {
@@ -94,7 +114,7 @@ namespace GoogleNas {
                         if(actual==null || !restore.Ready(p.Letter+@":\")) {
                             actual=restore.Mapping(p.Letter); occupied=restore.Occupied(p.Letter);
                             if(!StillAutomatic(p) || !CanRestore(actual,expected,occupied)) return "";
-                            var login=LoadRemoteLogin(p.Host,p.RemoteShare); restore.Connect(p,login);
+                            var login=LoadRemoteLogin(p.Host,p.RemoteShare); RestoreConnection(p,login);
                         }
                         if(!StillAutomatic(p)) return "";
                         if(!restore.Ready(p.Letter+@":\")) throw new IOException("Windows chưa truy cập được thư mục NAS.");
@@ -103,11 +123,11 @@ namespace GoogleNas {
                         if(StillAutomatic(p)) {
                             var windows=e as Win32Exception;
                             if(windows!=null && new[]{86,1326,1909,1331,1330,1907,1385,1219}.Contains(windows.NativeErrorCode)) { PauseConnection(p.Letter); SetConnectionState(p.Letter,"AuthRequired","Cần sửa đăng nhập · "+e.Message+" · Đã tắt tự thử để tránh khóa tài khoản"); }
-                            else SetConnectionState(p.Letter,"Offline",e.Message+" · Sẽ thử lại sau 60 giây");
+                            else SetConnectionState(p.Letter,"Offline",e.Message+" · Tự thử lại sau 10 giây khi mạng / Tailscale sẵn sàng");
                         }
                     }
                     return "";
-                }));
+                },()=>ConnectionState(p.Letter).State=="Offline"?10:60));
             }
             await Task.WhenAll(polls);
             return string.Join("\n",Connections().Select(p=>p.Letter+": "+ConnectionState(p.Letter).Message));

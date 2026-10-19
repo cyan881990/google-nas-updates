@@ -101,7 +101,7 @@ class UiTests {
                     if(catalog.LoadRemoteLogin("100.64.0.3","SavedNas").Password!="Saved!Configuration12" || catalog.Connections().Find(p=>p.Letter=="R").AutoConnect || remoteSecret.Text.Length>0) throw new Exception("Save login must encrypt credentials, clear the field and wait for first verified mount.");
                     form.PreviewPage(1); Application.DoEvents(); var states=(Dictionary<string,NasItemState>)typeof(MainForm).GetField("localShareStates",fieldFlags).GetValue(form); states["MediaNas"]=new NasItemState { Key="MediaNas",State="Enabled",Message="Đang chia sẻ" };
                     var list=(ListBox)typeof(MainForm).GetField("localNasList",fieldFlags).GetValue(form);
-                    typeof(MainForm).GetMethod("RefreshNasCatalogs",fieldFlags).Invoke(form,new object[]{false}); list.SelectedIndex=0; Application.DoEvents();
+                    typeof(MainForm).GetMethod("RefreshNasCatalogs",fieldFlags).Invoke(form,new object[]{false}); list.ClearSelected(); list.SelectedIndex=0; Application.DoEvents();
                     var create=(Button)typeof(MainForm).GetField("createNasButton",fieldFlags).GetValue(form); if(create.Enabled || create.Text!="Đã bật chia sẻ") throw new Exception("Already enabled NAS must not expose another Enable action.");
                     if(list.Items.Count!=2) throw new Exception("Local NAS list must retain both shared disks.");
                     Console.WriteLine("NAS lists: multiple disks, duplicate-enable guard and encrypted login configuration passed.");

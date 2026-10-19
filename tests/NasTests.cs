@@ -44,6 +44,35 @@ class NasTests {
         service.ForgetShare("FirstNas"); Check(service.LocalShares().Count==1,"Removing one saved local NAS preserves the other disk");
         service.ForgetConnection("P"); Check(service.Connections().Count==4,"Removing one remote configuration preserves others");
     }
+    static async Task RecoveryTests(string root) {
+        bool online=false,ready=false,filesOpen=false; string mapping=null; int connects=0,disconnects=0; NasLogin received=null;
+        var profile=new NasProfile { Host="100.64.0.2",RemoteShare="WifiNas",Letter="N" };
+        string expected=NasService.RemotePath(profile.Host,profile.RemoteShare);
+        var operations=new NasRestoreOperations {
+            Mapping=letter=>mapping,Occupied=letter=>mapping!=null,Ready=path=>ready,
+            Probe=host=>{ if(!online) throw new IOException("fixture network unavailable"); return Task.FromResult(0); },
+            Connect=(p,login)=>{ connects++; received=login; if(mapping!=null) throw NasService.ConnectionError(85,expected); mapping=expected; ready=true; },
+            Disconnect=p=>{ disconnects++; if(filesOpen) throw new System.ComponentModel.Win32Exception(2401); mapping=null; }
+        };
+        var service=new NasService(root,operations); service.RememberConnection(profile);
+        service.SaveRemoteLogin(profile.Host,profile.RemoteShare,"fixtureuser","Fixture!Wifi12");
+        await service.MaintainConnections();
+        Check(service.ConnectionState("N").State=="Offline" && connects==0,"Unavailable Wi-Fi waits without credential attempts");
+        online=true; service.NetworkChanged(); await service.MaintainConnections();
+        Check(service.ConnectionState("N").State=="Connected" && connects==1 && received.User=="fixtureuser" && received.Password=="Fixture!Wifi12","Network event bypasses cooldown and restores with saved credentials");
+        online=false; ready=false; service.NetworkChanged(); await service.MaintainConnections();
+        Check(service.ConnectionState("N").State=="Offline" && disconnects==0,"Network outage preserves existing mapping until server is reachable");
+        online=true; service.NetworkChanged(); await service.MaintainConnections();
+        Check(service.ConnectionState("N").State=="Connected" && disconnects==1 && connects==3,"Stale owned mapping after Wi-Fi switch is safely replaced");
+        ready=false; filesOpen=true; service.NetworkChanged(); await service.MaintainConnections();
+        Check(service.ConnectionState("N").State=="Offline" && mapping==expected && service.Connections()[0].AutoConnect,"Busy mapping is not forced closed and remains eligible for later recovery");
+        filesOpen=false; service.NetworkChanged(); await service.MaintainConnections();
+        Check(service.ConnectionState("N").State=="Connected","Recovery retries successfully after transient busy state clears");
+        mapping=@"\\100.64.0.9\Unrelated"; ready=false; int detached=disconnects; service.NetworkChanged(); await service.MaintainConnections();
+        Check(service.ConnectionState("N").State=="Conflict" && disconnects==detached,"Network event never detaches another share occupying the letter");
+        service.PauseConnection("N"); int previous=connects; service.NetworkChanged(); await service.MaintainConnections();
+        Check(connects==previous && !service.Connections()[0].AutoConnect && service.ConnectionState("N").State=="Paused","Wi-Fi changes never resume manually paused connections");
+    }
     static async Task DelayProbe(TaskCompletionSource<bool> pending,Action entered) { entered(); await pending.Task; }
     static int Main(string[] args) {
         try {
@@ -75,12 +104,23 @@ class NasTests {
             Check(monitor.Poll(slow).GetAwaiter().GetResult()==null && workers==1,"No duplicate workers while stalled");
             completion.SetResult("connected"); Check(monitor.Poll(slow).GetAwaiter().GetResult()=="connected","Completed reconnect result delivered");
             Check(monitor.Poll(slow).GetAwaiter().GetResult()==null && workers==1,"Retry interval avoids reconnect loop");
+            monitor.Wake(); Check(monitor.Poll(slow).GetAwaiter().GetResult()=="connected" && workers==2,"Network wake bypasses successful monitor cooldown");
+            var wakeMonitor=new NasConnectionMonitor(); var wakeCompletion=new TaskCompletionSource<string>(); int wakeWorkers=0;
+            Func<Task<string>> wakeWork=()=> { System.Threading.Interlocked.Increment(ref wakeWorkers); return wakeCompletion.Task; };
+            wakeMonitor.Poll(wakeWork).GetAwaiter().GetResult(); wakeMonitor.Wake(); wakeMonitor.Wake();
+            Check(wakeMonitor.Poll(wakeWork).GetAwaiter().GetResult()==null && wakeWorkers==1,"Network event storm never duplicates an in-flight worker");
+            wakeCompletion.SetResult("done"); wakeMonitor.Poll(wakeWork).GetAwaiter().GetResult(); wakeMonitor.Poll(wakeWork).GetAwaiter().GetResult();
+            Check(wakeWorkers==2,"Network change during a pending probe schedules another check after completion");
+            var retryMonitor=new NasConnectionMonitor(); int retryWorkers=0; Func<Task<string>> retryWork=()=>{ retryWorkers++; return Task.FromResult("offline"); };
+            retryMonitor.Poll(retryWork,()=>0).GetAwaiter().GetResult(); retryMonitor.Poll(retryWork,()=>0).GetAwaiter().GetResult();
+            Check(retryWorkers==2,"Transient failure retry interval can be shorter than healthy polling");
             var pending=NasService.ParseNetwork("{\"BackendState\":\"NeedsLogin\",\"TailscaleIPs\":null,\"Peer\":null}"); Check(!pending.Ready && pending.Address=="","Pending login null values");
             var network=NasService.ParseNetwork("{\"BackendState\":\"Running\",\"TailscaleIPs\":[\"fd7a::1\",\"100.100.0.1\"],\"Peer\":{\"node1\":{\"HostName\":\"nas-host\",\"TailscaleIPs\":[\"100.100.0.2\"]},\"node2\":{\"TailscaleIPs\":null}}}");
             Check(network.Ready && network.Address=="100.100.0.1" && network.Peers.Count==1,"Status and peer parsing");
             Check(!NasService.ParseNetwork("{\"BackendState\":\"Stopped\",\"TailscaleIPs\":[\"100.100.0.1\"]}").Ready,"Stopped cannot share");
             Directory.CreateDirectory(args[0]); var service=new NasService(args[0]); var profile=new NasProfile { Host="100.64.0.1",Share="Data_1",CreateUser=false }; service.Save(profile); var saved=service.Load(); Check(saved.Host==profile.Host && saved.Share==profile.Share && !saved.CreateUser,"Profile roundtrip");
             CatalogTests(Path.Combine(args[0],"catalog")).GetAwaiter().GetResult();
+            RecoveryTests(Path.Combine(args[0],"recovery")).GetAwaiter().GetResult();
             Check(!File.ReadAllText(Path.Combine(args[0],"nas.json")).Contains("Password"),"Profile has no passwords");
             service.SavePassword("nasuser","Fixture!PasswordSecret12");
             service.SavePassword("otheruser","Other!SecretPassword12");

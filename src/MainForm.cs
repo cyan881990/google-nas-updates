@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
+using System.Net.NetworkInformation;
+using Microsoft.Win32;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 namespace GoogleNas {
@@ -20,6 +22,8 @@ namespace GoogleNas {
         private CheckBox startup=new CheckBox(), autoMount=new CheckBox(), autoUpdate=new CheckBox();
         private Label status, dependencies, driveLabel, queued, uploading, cacheUsed, pageTitle;
         private NotifyIcon tray; private Timer timer=new Timer();
+        private readonly Timer networkTimer=new Timer { Interval=3000 };
+        private bool networkEventsAttached;
         private bool busy, exiting, polling, wantMount, updatingHosts;
         private DateTime nextRetry=DateTime.MinValue, nextUpdate=DateTime.UtcNow.AddHours(6);
         private List<Button> actionButtons=new List<Button>(), navigation=new List<Button>();
@@ -41,8 +45,13 @@ namespace GoogleNas {
             nasLetter.DropDownStyle=ComboBoxStyle.DropDownList; for(char c='D';c<='Z';c++) nasLetter.Items.Add(c.ToString()); nasLetter.SelectedItem=values.Letter;
             nasReadOnly.Text="Chỉ cho phép đọc file"; nasReadOnly.Checked=values.ReadOnly;
             nasCreateUser.Text="Tạo tài khoản mới cho NAS"; nasCreateUser.Checked=values.CreateUser;
+            catalogTimer.Tick+=NasCatalogRefreshTick;
             BuildDesktop(); SelectPage(0); DependencyStatus(); UpdateDriveActions(); ResumeLayout(true); FillNasList(localNasList,nas.LocalShares(),true); FillNasList(remoteNasList,nas.Connections(),false); UpdateNasActions();
             if(previewOnly) return;
+            NetworkChange.NetworkAddressChanged+=NetworkAddressChanged;
+            NetworkChange.NetworkAvailabilityChanged+=NetworkAvailabilityChanged;
+            SystemEvents.PowerModeChanged+=PowerModeChanged; networkEventsAttached=true;
+            networkTimer.Tick+=async(a,b)=>{ networkTimer.Stop(); if(busy || polling) { networkTimer.Start(); return; } nas.NetworkChanged(); await Tick(); };
             var menu=new ContextMenuStrip(); menu.Items.Add("Mở CYAN NAS",null,(a,b)=>ShowWindow()); menu.Items.Add("Mở ổ đĩa",null,(a,b)=>{ Process.Start("explorer.exe",Core.Quote(settings.Letter+@":\")); });
             menu.Items.Add("Thoát an toàn",null,async(a,b)=>await Run(async()=>{ await service.Stop(); exiting=true; Close(); }));
             tray=new NotifyIcon { Icon=Icon, Text="CYAN NAS", Visible=true, ContextMenuStrip=menu }; tray.DoubleClick+=(a,b)=>ShowWindow();
@@ -53,6 +62,14 @@ namespace GoogleNas {
         private NasProfile NasValues() {
             string host=nasHost.Text.Trim(); int separator=host.LastIndexOf('·'); if(separator>=0) host=host.Substring(separator+1).Trim();
             return new NasProfile { Folder=nasFolder.Text.Trim(),Share=nasShare.Text.Trim(),User=nasUser.Text.Trim(),Host=host,RemoteShare=remoteShare.Text.Trim(),Letter=Convert.ToString(nasLetter.SelectedItem),ReadOnly=nasReadOnly.Checked,CreateUser=nasCreateUser.Checked,RemoteUser=remoteUser.Text.Trim() };
+        }
+        private void NetworkAddressChanged(object sender,EventArgs e) { ScheduleNetworkRecovery(); }
+        private void NetworkAvailabilityChanged(object sender,NetworkAvailabilityEventArgs e) { ScheduleNetworkRecovery(); }
+        private void PowerModeChanged(object sender,PowerModeChangedEventArgs e) { if(e.Mode==PowerModes.Resume) ScheduleNetworkRecovery(); }
+        private void ScheduleNetworkRecovery() {
+            if(IsDisposed || Disposing || !IsHandleCreated || exiting) return;
+            try { BeginInvoke((Action)(()=>{ if(IsDisposed || Disposing || exiting) return; networkTimer.Stop(); networkTimer.Start(); })); }
+            catch(InvalidOperationException) { /* Window is closing. */ }
         }
         private async Task RefreshNas() {
             var state=await nas.Status();
@@ -106,6 +123,6 @@ namespace GoogleNas {
             foreach(Panel page in pages) FitCards(page);
         }
         private static void Open(string path) { Process.Start(new ProcessStartInfo(path) { UseShellExecute=true }); }
-        protected override void Dispose(bool disposing) { if(disposing) { tips.Dispose(); if(brandImage!=null) brandImage.Dispose(); timer.Dispose(); if(tray!=null) tray.Dispose(); if(Icon!=null) Icon.Dispose(); } base.Dispose(disposing); }
+        protected override void Dispose(bool disposing) { if(disposing) { if(networkEventsAttached) { NetworkChange.NetworkAddressChanged-=NetworkAddressChanged; NetworkChange.NetworkAvailabilityChanged-=NetworkAvailabilityChanged; SystemEvents.PowerModeChanged-=PowerModeChanged; networkEventsAttached=false; } networkTimer.Dispose(); catalogTimer.Dispose(); tips.Dispose(); if(brandImage!=null) brandImage.Dispose(); timer.Dispose(); if(tray!=null) tray.Dispose(); if(Icon!=null) Icon.Dispose(); } base.Dispose(disposing); }
     }
 }
