@@ -81,7 +81,7 @@ namespace GoogleNas {
   }
   public async Task Test(StorageConnection p) { StorageProviders.Validate(p);await Run(new[]{"lsf","remote:"+p.Path.Trim('/'),"--max-depth","1","--contimeout","8s","--timeout","15s","--retries","1","--low-level-retries","1"},ConfigFor(p),null,45000); }
   public async Task Connect(StorageConnection p) {
-   if(stopping)return;var r=Runtime(p);r.PendingPause=false;if(r.Service!=null && r.Service.Running){await Test(p);r.State="Đã kết nối";r.Message="";return;}
+   if(stopping)return;CyanSession.Require();var r=Runtime(p);r.PendingPause=false;if(r.Service!=null && r.Service.Running){await Test(p);r.State="Đã kết nối";r.Message="";return;}
    r.State="Đang kết nối";r.Message="";
    try {
     if(!File.Exists(ConfigFor(p)))await Configure(p);

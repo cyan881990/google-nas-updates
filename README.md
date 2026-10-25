@@ -1,4 +1,6 @@
-# CYAN NAS — v2.2.0
+# CYAN NAS — v2.3.0
+
+Đăng nhập và quản lý license qua CYANPRO: token được mã hóa bằng Windows DPAPI, không lưu mật khẩu. Kiểm tra license khi mở app/mỗi 6 giờ, offline tối đa 72 giờ sau lần xác thực hợp lệ và không vượt hạn license. Cập nhật lấy metadata và link từ CYANPRO, file cài vẫn lưu trên GitHub, xác minh SHA256 và phiên bản. Chặn thao tác tạo chia sẻ/kết nối mới khi chưa xác thực; giữ ổ đang chạy để ngắt an toàn.
 
 Một ứng dụng, hai tab chính **SERVER** và **CLIENT**. Chuyển tab giữ nguyên cấu hình đang sửa, dòng được chọn và kết nối nền. Một shortcut CYAN NAS, một icon khay hệ thống và một thiết lập khởi động cùng Windows. Cấu hình Server/Client cũ được giữ tại các thư mục dữ liệu hiện có.
 
@@ -136,3 +138,6 @@ WinFsp - Windows File System Proxy, Copyright (C) Bill Zissimopoulos. Bộ cài 
 - [rclone Google Drive](https://rclone.org/drive/)
 - [.NET Framework 4.8 offline](https://dotnet.microsoft.com/en-us/download/dotnet-framework/thank-you/net48-offline-installer)
 - [GitHub Releases API](https://docs.github.com/en/rest/releases/releases)
+
+## Phát hành qua CYANPRO
+Lưu khóa nhà phát triển vào GitHub Actions secret CYAN_DEV_TOKEN. Workflow đăng bản lên GitHub trước rồi gọi scripts/publish-cyanpro.ps1 để cập nhật nội dung và link trên CYANPRO. Không nhúng API Secret hoặc dev token vào binary/source. X-Api-Key là khóa client công khai chỉ dùng cho đăng nhập, license và metadata phiên bản. Xem https://cyanpro.app/docs và https://cyanpro.app/docs/dev.

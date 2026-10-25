@@ -59,3 +59,14 @@ jobs:
           TAG="v$VERSION"
           if [[ "$RELEASE_TAG" == v* && "$RELEASE_TAG" != "$TAG" ]]; then exit 1; fi
           gh release create "$TAG" artifacts/dist/CyanNas.exe artifacts/dist/CyanNas.exe.sha256 artifacts/dist/GoogleNas.exe artifacts/dist/GoogleNas.exe.sha256 artifacts/dist/GoogleNasSetup.exe artifacts/dist/GoogleNasSetup.exe.sha256 artifacts/dist/CyanNasSetup.exe artifacts/dist/CyanNasSetup.exe.sha256 artifacts/dist/CyanNasServer.exe artifacts/dist/CyanNasServer.exe.sha256 artifacts/dist/CyanNasClient.exe artifacts/dist/CyanNasClient.exe.sha256 --target "$GITHUB_SHA" --title "CYAN NAS $VERSION" --generate-notes
+      - name: Publish product and release links to CYANPRO
+        shell: pwsh
+        env:
+          CYAN_DEV_TOKEN: ${{ secrets.CYAN_DEV_TOKEN }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:CYAN_DEV_TOKEN)) {
+            Write-Warning 'CYANPRO sync is pending: repository secret CYAN_DEV_TOKEN has not been configured. Register this release using scripts/publish-cyanpro.ps1.'
+            'CYANPRO synchronization requires the CYAN_DEV_TOKEN repository secret.' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          } else {
+            ./scripts/publish-cyanpro.ps1 -UpdateProduct -Release
+          }

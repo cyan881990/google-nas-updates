@@ -17,28 +17,10 @@ namespace GoogleNas {
     }
     public static class Updater {
         public static async Task<Release> Check(string repository) {
-            repository=Core.EffectiveRepository(repository);
-            var s = new Settings { Repository = repository }; Core.Validate(s);
-            if (repository == "") throw new Exception("Bản cài này chưa có nguồn cập nhật. Liên hệ người phát hành để nhận bộ cài đã cấu hình.");
-            using (var c = Services.Client()) {
-                string response;
-                try { response=await c.DownloadStringTaskAsync("https://api.github.com/repos/" + repository + "/releases/latest"); }
-                catch(WebException e) {
-                    var http=e.Response as HttpWebResponse;
-                    if(http!=null && http.StatusCode==HttpStatusCode.NotFound) throw new Exception("Nguồn cập nhật chưa có bản phát hành công khai hoặc không truy cập được. Vui lòng thử lại sau khi bản mới được phát hành.",e);
-                    throw;
-                }
-                var data = Core.Json.Deserialize<Dictionary<string, object>>(response);
-                var tag = Convert.ToString(data["tag_name"]);
-                if (!Core.Newer(tag)) return null;
-                if (Convert.ToBoolean(data["prerelease"]) || Convert.ToBoolean(data["draft"])) return null;
-                var assets = ((IEnumerable)data["assets"]).Cast<Dictionary<string, object>>().ToList();
-                var exe = assets.SingleOrDefault(a => Convert.ToString(a["name"]) == "GoogleNas.exe");
-                var sha = assets.SingleOrDefault(a => Convert.ToString(a["name"]) == "GoogleNas.exe.sha256");
-                if (exe == null || sha == null) throw new Exception("Release thiếu GoogleNas.exe hoặc GoogleNas.exe.sha256.");
-                var release = new Release { Tag = tag, Binary = Convert.ToString(exe["browser_download_url"]), Checksum = Convert.ToString(sha["browser_download_url"]) };
-                Core.TrustedAsset(release.Binary, repository); Core.TrustedAsset(release.Checksum, repository); return release;
-            }
+            var metadata=await CyanRelease.Check();if(metadata==null)return null;
+            string binary=metadata.Url.Substring(0,metadata.Url.LastIndexOf('/')+1)+"GoogleNas.exe";
+            var release=new Release{Tag=metadata.Version,Binary=binary,Checksum=binary+".sha256"};
+            Core.TrustedAsset(release.Binary,Core.UpdateRepository);Core.TrustedAsset(release.Checksum,Core.UpdateRepository);return release;
         }
         public static async Task<string> Stage(Release release, string home) {
             string work = Path.Combine(home, "updates", Guid.NewGuid().ToString("N")); Directory.CreateDirectory(work);

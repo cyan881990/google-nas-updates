@@ -15,6 +15,7 @@ class SuiteUiTests {
   using(var bitmap=new Bitmap(dialog.Width,dialog.Height)){dialog.DrawToBitmap(bitmap,new Rectangle(Point.Empty,dialog.Size));bitmap.Save(Path.Combine(root,name+"-"+width+".png"));}
  }
  [STAThread]static int Main(string[] args){try{Application.EnableVisualStyles();Application.SetCompatibleTextRenderingDefault(false);string root=Path.GetFullPath(args[0]);Directory.CreateDirectory(root);
+ foreach(int width in new[]{620,900})using(var account=new CyanAccountWindow(null)){CheckDialog(account,root,"cyanpro-account",width);var pass=All(account).OfType<TextBox>().Single(t=>t.Name=="CyanPassword");if(!pass.UseSystemPasswordChar)throw new Exception("CYANPRO password must be masked");}
  foreach(bool server in new[]{true,false})using(var form=new SuiteForm(server,false,true,Path.Combine(root,server?"server-data":"client-data"))){form.ShowInTaskbar=false;form.StartPosition=FormStartPosition.Manual;form.Location=new Point(-10000,-10000);form.Show();Application.DoEvents();form.MinimumSize=Size.Empty;form.MaximumSize=new Size(8000,8000);
   var drives=All(form).OfType<DataGridView>().Single();
   if(form.BackColor!=SuiteTheme.Background||drives.ColumnCount!=9||drives.Columns.Cast<DataGridViewColumn>().Where(c=>c.Index>=5).Any(c=>!c.Visible))throw new Exception("Drive list must expose four row actions in the dark shell");

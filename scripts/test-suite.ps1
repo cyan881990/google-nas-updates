@@ -2,6 +2,11 @@
 $projectRoot=Split-Path -Parent $PSScriptRoot
 $compiler=Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
 $source=@(Get-ChildItem (Join-Path $projectRoot 'src') -Filter '*.cs' | ForEach-Object FullName)
+$license=Join-Path $projectRoot 'build\CyanProTests.exe'
+& $compiler /nologo /target:exe /main:CyanProTests "/out:$license" /reference:System.Security.dll /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll /reference:System.IO.Compression.dll /reference:System.IO.Compression.FileSystem.dll $source (Join-Path $projectRoot 'tests\CyanProTests.cs')
+if($LASTEXITCODE -ne 0){throw 'CYANPRO tests compilation failed'}
+& $license (Join-Path $projectRoot ('build\cyanpro-tests-'+[Guid]::NewGuid().ToString('N'))) (Join-Path $projectRoot 'dist\CyanNasSetup.exe')
+if($LASTEXITCODE -ne 0){throw 'CYANPRO tests failed'}
 $exe=Join-Path $projectRoot 'build\SuiteTests.exe'
 & $compiler /nologo /target:exe /main:SuiteTests "/out:$exe" /reference:System.Security.dll /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll /reference:System.IO.Compression.dll /reference:System.IO.Compression.FileSystem.dll $source (Join-Path $projectRoot 'tests\SuiteTests.cs')
 if($LASTEXITCODE -ne 0){throw 'Suite tests compilation failed'}
