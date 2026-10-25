@@ -1,4 +1,6 @@
-# CYAN NAS SERVER + CYAN NAS CLIENT — v2.0.1
+# CYAN NAS SERVER + CYAN NAS CLIENT — v2.0.2
+
+v2.0.2 đồng bộ các cửa sổ con bằng một khung không viền dùng chung: màu nền, thanh tiêu đề, icon theo tool, nút đóng đỏ, thẻ trắng bo góc, ô nhập và nhóm nút. Thêm/chỉnh sửa kết nối, cấp quyền OAuth, thông báo lỗi, xác nhận và thông báo cập nhật đều dùng cùng kiểu giao diện. Cửa sổ tự giới hạn theo vùng màn hình, hỗ trợ kéo tiêu đề và phím Esc; xác nhận mặc định Hủy. Cài đặt và Mạng vẫn là trang trong app, không mở cửa sổ Cài đặt cũ. Chặn đóng/lưu cấu hình khi đang kiểm tra hoặc gắn ổ. Không thay đổi kết nối hay tài khoản đang chạy trên máy khi build.
 
 v2.0.1 chia giao diện thành 5 trang độc lập cho mỗi tool. SERVER: Ổ đang chia sẻ, Cấu hình chia sẻ, Tài khoản truy cập, Mạng Tailscale, Cài đặt. CLIENT: Kết nối của tôi, Chi tiết kết nối, Hoạt động, Mạng Tailscale, Cài đặt. Thanh bên đổi nội dung và đánh dấu trang đang mở; không còn cuộn tới biểu mẫu hoặc mở hộp thoại thay cho trang. Chuyển trang giữ nguyên dòng được chọn, cấu hình chưa lưu và kết nối nền; nhấp đúp một ổ để mở trang chi tiết. Tạo chia sẻ mới mở trang cấu hình và có liên kết qua lại với trang tài khoản. Cài đặt mạng, khởi động và cập nhật có trang riêng.
 
