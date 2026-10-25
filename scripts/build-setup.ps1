@@ -9,7 +9,7 @@ $prerequisitesDir = Join-Path $payloadDir 'prerequisites'
 New-Item -ItemType Directory -Path $appDir,$prerequisitesDir -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $projectRoot 'dist\GoogleNas.exe'),(Join-Path $PSScriptRoot 'uninstall.ps1'),(Join-Path $projectRoot 'README.md') -Destination $appDir
 if ($Suite -and (Test-Path -LiteralPath (Join-Path $buildDir 'GoogleNasLauncher.exe'))) { Copy-Item -LiteralPath (Join-Path $buildDir 'GoogleNasLauncher.exe') -Destination (Join-Path $appDir 'GoogleNas.exe') -Force }
-if ($Suite) { Copy-Item -LiteralPath (Join-Path $projectRoot 'dist\CyanNasServer.exe'),(Join-Path $projectRoot 'dist\CyanNasClient.exe') -Destination $appDir }
+if ($Suite) { Copy-Item -LiteralPath (Join-Path $projectRoot 'dist\CyanNas.exe'),(Join-Path $projectRoot 'dist\CyanNasServer.exe'),(Join-Path $projectRoot 'dist\CyanNasClient.exe') -Destination $appDir }
 New-Item -ItemType Directory -Path (Join-Path $appDir 'runtime'),(Join-Path $appDir 'licenses') -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $dependencyDir 'rclone.exe') -Destination (Join-Path $appDir 'runtime\rclone.exe')
 Copy-Item -LiteralPath (Join-Path $dependencyDir 'WinFsp-LICENSE.txt'),(Join-Path $dependencyDir 'rclone-LICENSE.txt'),(Join-Path $dependencyDir 'WinFsp-source-v2.1.zip') -Destination (Join-Path $appDir 'licenses')
@@ -17,7 +17,7 @@ Copy-Item -LiteralPath (Join-Path $dependencyDir 'winfsp.msi'),(Join-Path $depen
 $compiler = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
 $setupSources = @((Join-Path $projectRoot 'installer\Setup.cs'),(Join-Path $projectRoot 'src\Core.cs'),(Join-Path $projectRoot 'src\Theme.cs'),(Join-Path $projectRoot 'src\IconArtwork.cs'),(Join-Path $buildDir 'Version.cs'))
 $setupIcon = Join-Path $buildDir 'GoogleNas.ico'
-if ($Suite) { $setupIcon = Join-Path $buildDir 'CyanNasClient.ico' }
+if ($Suite) { $setupIcon = Join-Path $buildDir 'CyanNas.ico' }
 $compileOptions = @('/nologo','/target:winexe','/platform:x64','/optimize+',"/win32icon:$setupIcon",'/reference:System.Windows.Forms.dll','/reference:System.Drawing.dll','/reference:System.Web.Extensions.dll','/reference:System.IO.Compression.dll','/reference:System.IO.Compression.FileSystem.dll','/reference:Microsoft.CSharp.dll',"/win32manifest:$(Join-Path $projectRoot 'src\app.manifest')")
 if ($Suite) { $compileOptions += '/define:CYAN_SUITE' }
 & $compiler $compileOptions "/out:$(Join-Path $appDir 'Uninstall.exe')" $setupSources

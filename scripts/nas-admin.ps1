@@ -17,7 +17,7 @@ function Assert-NasFolder([string]$Folder) {
     $drive = New-Object IO.DriveInfo($root)
     if ($drive.DriveType -notin @([IO.DriveType]::Fixed,[IO.DriveType]::Removable) -or $drive.DriveFormat -notin @('NTFS','ReFS')) { throw 'NAS requires a local NTFS/ReFS drive. FAT/exFAT and mapped network drives are unsupported.' }
     if ($full.TrimEnd('\') -eq $env:SystemDrive) { throw 'Do not share the Windows system drive root.' }
-    foreach ($reserved in @($env:WINDIR,$env:ProgramFiles,${env:ProgramFiles(x86)},(Join-Path $env:LOCALAPPDATA 'GoogleNas'),(Join-Path $env:LOCALAPPDATA 'CyanNasServer'),(Join-Path $env:LOCALAPPDATA 'CyanNasClient'),(Join-Path $env:LOCALAPPDATA 'Programs\GoogleNas'))) {
+    foreach ($reserved in @($env:WINDIR,$env:ProgramFiles,${env:ProgramFiles(x86)},(Join-Path $env:LOCALAPPDATA 'GoogleNas'),(Join-Path $env:LOCALAPPDATA 'CyanNas'),(Join-Path $env:LOCALAPPDATA 'CyanNasServer'),(Join-Path $env:LOCALAPPDATA 'CyanNasClient'),(Join-Path $env:LOCALAPPDATA 'Programs\GoogleNas'))) {
         if ($reserved -and ($full -eq $reserved -or $full.StartsWith($reserved.TrimEnd('\')+'\',[StringComparison]::OrdinalIgnoreCase))) { throw 'Select a data folder, not a system/application folder.' }
     }
     $ancestor = $item

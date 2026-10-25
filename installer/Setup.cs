@@ -50,7 +50,7 @@ namespace GoogleNasInstaller {
         public static readonly string Target=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"Programs","GoogleNas");
         public static bool Reboot;
         public static string ShortcutWarning;
-        public static bool Active() { return new[]{"GoogleNas","CyanNasServer","CyanNasClient"}.Any(name=>Process.GetProcessesByName(name).Any(p=>p.SessionId==Process.GetCurrentProcess().SessionId)); }
+        public static bool Active() { return new[]{"GoogleNas","CyanNas","CyanNasServer","CyanNasClient"}.Any(name=>Process.GetProcessesByName(name).Any(p=>p.SessionId==Process.GetCurrentProcess().SessionId)); }
         public static int FrameworkRelease() {
             using(var root=RegistryKey.OpenBaseKey(RegistryHive.LocalMachine,RegistryView.Registry32)) using(var key=root.OpenSubKey(@"SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full")) return key==null?0:Convert.ToInt32(key.GetValue("Release",0));
         }
@@ -75,7 +75,7 @@ namespace GoogleNasInstaller {
             }
             var manifest=Core.Json.Deserialize<Dictionary<string,string>>(File.ReadAllText(Path.Combine(destination,"payload.json")));
             foreach(var pair in manifest) if(!Core.Hash(SafePath(destination,pair.Key)).Equals(pair.Value,StringComparison.OrdinalIgnoreCase)) throw new Exception("Dữ liệu bộ cài sai checksum: "+pair.Key);
-            if(SuitePackage)foreach(string required in new[]{"app/CyanNasServer.exe","app/CyanNasClient.exe"})if(!manifest.ContainsKey(required))throw new Exception("Bộ cài thiếu "+required);
+            if(SuitePackage)foreach(string required in new[]{"app/CyanNas.exe"})if(!manifest.ContainsKey(required))throw new Exception("Bộ cài thiếu "+required);
             foreach(string required in new[]{"app/GoogleNas.exe","app/runtime/rclone.exe","app/Uninstall.exe","prerequisites/winfsp.msi","prerequisites/dotnet48.exe"}) if(!manifest.ContainsKey(required)) throw new Exception("Bộ cài thiếu "+required);
         }
         public static void InstallFiles(string stage,string target) {
@@ -176,9 +176,8 @@ namespace GoogleNasInstaller {
                 Directory.CreateDirectory(menu);
                 // WScript.Shell replaces unsupported characters with '?' on some Windows locales.
                 if(SuitePackage){
-                    Shortcut(Path.Combine(menu,"CYAN NAS SERVER.lnk"),Path.Combine(target,"CyanNasServer.exe"),"");
-                    Shortcut(Path.Combine(menu,"CYAN NAS CLIENT.lnk"),Path.Combine(target,"CyanNasClient.exe"),"");
-                    try{File.Delete(Path.Combine(menu,"CYAN NAS.lnk"));}catch{}
+                    Shortcut(Path.Combine(menu,"CYAN NAS.lnk"),Path.Combine(target,"CyanNas.exe"),"");
+                    foreach(string old in new[]{"CYAN NAS SERVER.lnk","CYAN NAS CLIENT.lnk"})try{File.Delete(Path.Combine(menu,old));}catch{}
                 } else Shortcut(Path.Combine(menu,"CYAN NAS.lnk"),Path.Combine(target,"GoogleNas.exe"),"");
                 Shortcut(Path.Combine(menu,"Uninstall CYAN NAS.lnk"),Path.Combine(target,"Uninstall.exe"),"--uninstall");
                 return null;
@@ -188,12 +187,12 @@ namespace GoogleNasInstaller {
         }
         private static void Register(bool startup) {
             using(var key=Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Uninstall\GoogleNas")) {
-                key.SetValue("DisplayName",SuitePackage?"CYAN NAS · SERVER & CLIENT":"CYAN NAS"); key.SetValue("DisplayVersion",Core.Version); key.SetValue("Publisher","CYAN NAS"); key.SetValue("InstallLocation",Target); key.SetValue("DisplayIcon",Path.Combine(Target,"GoogleNas.exe")); key.SetValue("UninstallString",Core.Quote(Path.Combine(Target,"Uninstall.exe"))+" --uninstall"); key.SetValue("NoModify",1,RegistryValueKind.DWord); key.SetValue("NoRepair",1,RegistryValueKind.DWord);
+                key.SetValue("DisplayName","CYAN NAS"); key.SetValue("DisplayVersion",Core.Version); key.SetValue("Publisher","CYAN NAS"); key.SetValue("InstallLocation",Target); key.SetValue("DisplayIcon",Path.Combine(Target,SuitePackage?"CyanNas.exe":"GoogleNas.exe")); key.SetValue("UninstallString",Core.Quote(Path.Combine(Target,"Uninstall.exe"))+" --uninstall"); key.SetValue("NoModify",1,RegistryValueKind.DWord); key.SetValue("NoRepair",1,RegistryValueKind.DWord);
             }
             using(var key=Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run")) { if(startup) key.SetValue("GoogleNas",Core.Quote(Path.Combine(Target,"GoogleNas.exe"))+" --tray"); else key.DeleteValue("GoogleNas",false); }
             if(SuitePackage)using(var key=Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run")) {
                 key.DeleteValue("GoogleNas",false);
-                foreach(string id in new[]{"CyanNasServer","CyanNasClient"}){if(startup)key.SetValue(id,Core.Quote(Path.Combine(Target,id+".exe"))+" --tray");else key.DeleteValue(id,false);}
+                foreach(string id in new[]{"CyanNasServer","CyanNasClient"})key.DeleteValue(id,false);if(startup)key.SetValue("CyanNas",Core.Quote(Path.Combine(Target,"CyanNas.exe"))+" --tray");else key.DeleteValue("CyanNas",false);
             }
             ShortcutWarning=CreateShortcuts(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs),"CYAN NAS"),Target);
             if(string.IsNullOrEmpty(ShortcutWarning)) {
@@ -217,18 +216,18 @@ namespace GoogleNasInstaller {
         public SetupForm() {
             SuspendLayout(); AutoScaleDimensions=new SizeF(96,96); AutoScaleMode=AutoScaleMode.Dpi;
             Text="CYAN NAS · Cài đặt"; Icon=SetupEngine.SuitePackage?(System.Drawing.Icon.ExtractAssociatedIcon(Application.ExecutablePath)??Theme.Icon()):Theme.Icon(); Font=new Font("Segoe UI",10); BackColor=Theme.Background; ClientSize=new Size(760,535); FormBorderStyle=FormBorderStyle.FixedDialog; MaximizeBox=false; StartPosition=FormStartPosition.CenterScreen;
-            var banner=new Panel { Dock=DockStyle.Top,Height=143,BackColor=Theme.Navy }; Controls.Add(banner); Put(banner,SetupEngine.SuitePackage?"CYAN NAS SERVER + CLIENT":"CYAN NAS",24,true,Color.White,30,25); Put(banner,SetupEngine.SuitePackage?"Một bộ cài · Hai ứng dụng Windows độc lập":"Ổ đĩa Google Drive cho Windows",12,false,Color.FromArgb(173,194,221),33,78);
-            var body=new Card { Location=new Point(26,163),Size=new Size(708,277) }; Controls.Add(body); Put(body,SetupEngine.SuitePackage?"Cài SERVER và CLIENT cùng lúc.":"Một bộ cài. Sẵn sàng làm việc.",17,true,Theme.Ink,22,19);
+            var banner=new Panel { Dock=DockStyle.Top,Height=143,BackColor=Theme.Navy }; Controls.Add(banner); Put(banner,SetupEngine.SuitePackage?"CYAN NAS":"CYAN NAS",24,true,Color.White,30,25); Put(banner,SetupEngine.SuitePackage?"Một ứng dụng · Hai tab SERVER và CLIENT":"Ổ đĩa Google Drive cho Windows",12,false,Color.FromArgb(173,194,221),33,78);
+            var body=new Card { Location=new Point(26,163),Size=new Size(708,277) }; Controls.Add(body); Put(body,SetupEngine.SuitePackage?"Một cửa sổ. Đủ cả SERVER và CLIENT.":"Một bộ cài. Sẵn sàng làm việc.",17,true,Theme.Ink,22,19);
             Put(body,"Google Drive: rclone, WinFsp và .NET Framework tích hợp offline.\nNAS từ xa: tool tự tải/cài Tailscale khi bạn bật tính năng.",10,false,Theme.Muted,22,61);
-            startup=new CheckBox { Text=SetupEngine.SuitePackage?"Khởi chạy cả hai tool khi đăng nhập Windows":"Khởi chạy CYAN NAS khi đăng nhập Windows",Checked=true,AutoSize=true,Location=new Point(22,111) }; body.Controls.Add(startup);
-            launch=new CheckBox { Text=SetupEngine.SuitePackage?"Mở SERVER và CLIENT sau khi cài xong":"Mở ứng dụng sau khi cài xong",Checked=true,AutoSize=true,Location=new Point(22,145) }; body.Controls.Add(launch);
+            startup=new CheckBox { Text=SetupEngine.SuitePackage?"Khởi chạy CYAN NAS khi đăng nhập Windows":"Khởi chạy CYAN NAS khi đăng nhập Windows",Checked=true,AutoSize=true,Location=new Point(22,111) }; body.Controls.Add(startup);
+            launch=new CheckBox { Text=SetupEngine.SuitePackage?"Mở CYAN NAS sau khi cài xong":"Mở ứng dụng sau khi cài xong",Checked=true,AutoSize=true,Location=new Point(22,145) }; body.Controls.Add(launch);
             state=Put(body,"Sẵn sàng cài đặt · Driver có thể yêu cầu quyền quản trị Windows.",9,false,Theme.Muted,22,185); state.AutoSize=false; state.Size=new Size(660,40);
             progress=new ProgressBar { Location=new Point(22,234),Size=new Size(660,8),Style=ProgressBarStyle.Continuous }; body.Controls.Add(progress);
             Put(this,"WinFsp - Windows File System Proxy, Copyright (C) Bill Zissimopoulos",8,false,Theme.Muted,28,451);
             var credits=new LinkLabel { Text="Giấy phép & thành phần tích hợp",AutoSize=true,Location=new Point(28,475),LinkColor=Theme.Blue }; credits.LinkClicked+=(a,b)=>MessageBox.Show("WinFsp: GPLv3, phân phối MSI nguyên bản.\nhttps://github.com/winfsp/winfsp\nrclone: MIT. .NET Framework: Microsoft.\nBộ cài cài các thành phần này theo giấy phép nhà cung cấp. Giấy phép và mã nguồn WinFsp được lưu trong thư mục licenses của ứng dụng.","Thành phần tích hợp"); Controls.Add(credits);
             install=Theme.Button("Cài đặt",true); install.Location=new Point(592,467); install.Size=new Size(142,42); Controls.Add(install);
             finish=Theme.Button("Hoàn tất",true); finish.Location=install.Location; finish.Size=install.Size; finish.Visible=false; Controls.Add(finish);
-            install.Click+=async(a,b)=>await BeginInstall(); finish.Click+=(a,b)=>{ if(launch.Checked && !SetupEngine.Reboot) { if(SetupEngine.SuitePackage){Process.Start(Path.Combine(SetupEngine.Target,"CyanNasServer.exe"));Process.Start(Path.Combine(SetupEngine.Target,"CyanNasClient.exe"));}else Process.Start(Path.Combine(SetupEngine.Target,"GoogleNas.exe")); } Close(); };
+            install.Click+=async(a,b)=>await BeginInstall(); finish.Click+=(a,b)=>{ if(launch.Checked && !SetupEngine.Reboot) { if(SetupEngine.SuitePackage){Process.Start(Path.Combine(SetupEngine.Target,"CyanNas.exe"));}else Process.Start(Path.Combine(SetupEngine.Target,"GoogleNas.exe")); } Close(); };
             FormClosing+=(a,b)=>{ if(working) b.Cancel=true; };
             ResumeLayout(true);
         }
@@ -240,7 +239,7 @@ namespace GoogleNasInstaller {
                 await Task.Run(()=>SetupEngine.Install((message,value)=>BeginInvoke(new Action(()=>{ state.Text=message; progress.Value=value; })),auto));
                 done=true; install.Visible=false; finish.Visible=true; launch.Enabled=true;
                 if(SetupEngine.Reboot) { state.Text="Đã cài xong. Khởi động lại Windows để hoàn tất driver/runtime, rồi mở CYAN NAS."; launch.Checked=false; launch.Enabled=false; }
-                else state.Text=SetupEngine.SuitePackage?"Đã cài CYAN NAS SERVER và CYAN NAS CLIENT. Hai shortcut riêng trong Start Menu.":"Đã cài xong. Mở ứng dụng và kết nối tài khoản Google để bắt đầu.";
+                else state.Text=SetupEngine.SuitePackage?"Đã cài CYAN NAS. Mở ứng dụng để dùng hai tab SERVER và CLIENT.":"Đã cài xong. Mở ứng dụng và kết nối tài khoản Google để bắt đầu.";
                 if(!string.IsNullOrEmpty(SetupEngine.ShortcutWarning)) state.Text="Đã cài xong; chưa tạo được shortcut. Mở GoogleNas.exe trong thư mục cài. Chi tiết: %LOCALAPPDATA%\\GoogleNasSetup\\logs\\shortcuts.log";
             } catch(Exception e) {
                 try { string logs=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"GoogleNasSetup","logs"); Directory.CreateDirectory(logs); File.WriteAllText(Path.Combine(logs,"install-error.log"),e.ToString()); } catch {}

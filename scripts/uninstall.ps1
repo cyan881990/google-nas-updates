@@ -7,9 +7,9 @@ if ($WaitProcessId -gt 0) {
 $installRoot = Join-Path $env:LOCALAPPDATA 'Programs\GoogleNas'
 $resolvedRoot = [System.IO.Path]::GetFullPath($installRoot)
 if ($resolvedRoot -ne [System.IO.Path]::GetFullPath($PSScriptRoot)) { throw 'Chạy uninstall.ps1 từ thư mục ứng dụng đã cài.' }
-if (Get-Process -Name GoogleNas,CyanNasServer,CyanNasClient -ErrorAction SilentlyContinue) { throw 'Chọn Thoát an toàn từ khay hệ thống trước khi gỡ.' }
+if (Get-Process -Name GoogleNas,CyanNas,CyanNasServer,CyanNasClient -ErrorAction SilentlyContinue) { throw 'Chọn Thoát an toàn từ khay hệ thống trước khi gỡ.' }
 Remove-ItemProperty -LiteralPath 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name GoogleNas -ErrorAction SilentlyContinue
-foreach ($suiteId in @('CyanNasServer','CyanNasClient')) { Remove-ItemProperty -LiteralPath 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name $suiteId -ErrorAction SilentlyContinue }
+foreach ($suiteId in @('CyanNas','CyanNasServer','CyanNasClient')) { Remove-ItemProperty -LiteralPath 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name $suiteId -ErrorAction SilentlyContinue }
 Remove-Item -LiteralPath 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\GoogleNas' -ErrorAction SilentlyContinue
 $menuRoot = [System.IO.Path]::GetFullPath((Join-Path ([Environment]::GetFolderPath('Programs')) 'CYAN NAS'))
 $menuParent = [System.IO.Path]::GetFullPath([Environment]::GetFolderPath('Programs')).TrimEnd('\') + '\'

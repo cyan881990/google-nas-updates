@@ -1,14 +1,8 @@
-# CYAN NAS SERVER + CYAN NAS CLIENT — v2.1.1
+# CYAN NAS — v2.2.0
 
-v2.1.1 đổi logo từ đám mây/cụm ổ sang khối phẳng xanh lá và xanh cyan với cạnh xanh dương đậm theo kiểu RaiDrive. Dấu S/C chỉ xuất hiện từ 48 px để phân biệt hai tool; icon nhỏ giữ hình khối đơn giản. Đồng bộ biểu tượng tiêu đề, taskbar, khay hệ thống, shortcut và bộ cài; ICO gồm 9 kích thước 16–256 px. Có bản SVG tại design/branding/.
+Một ứng dụng, hai tab chính **SERVER** và **CLIENT**. Chuyển tab giữ nguyên cấu hình đang sửa, dòng được chọn và kết nối nền. Một shortcut CYAN NAS, một icon khay hệ thống và một thiết lập khởi động cùng Windows. Cấu hình Server/Client cũ được giữ tại các thư mục dữ liệu hiện có.
 
-v2.1.0 thiết kế lại theo bố cục tiện ích quản lý ổ tham khảo [RaiDrive](https://docs.raidrive.com/gui/getting-started/first-drive/): nền graphite, thanh công cụ Thêm/Làm mới/Cài đặt/Mạng, điều hướng ngang giữ 5 trang riêng cho mỗi tool. Danh sách theo từng ổ có icon nguồn, tên, máy chủ, trạng thái, quota và bốn thao tác kết nối/ngắt, chỉnh sửa, mở thư mục, bỏ lưu. Trạng thái chia sẻ máy chủ lấy từ kết quả kiểm tra thực, không suy đoán bằng ngôn ngữ thông báo. Bộ lọc Cloud/NAS không xóa bản nháp. Khung cửa sổ, biểu mẫu và thông báo dùng cùng tông tối; nút cửa sổ chuyển sang góc phải. Bộ icon vector CYAN NAS riêng: Server dạng cụm ổ, Client đám mây/ổ đĩa, icon 13 nguồn lưu trữ và bộ cài 9 kích thước. Không sử dụng logo hoặc tên RaiDrive làm nhận diện ứng dụng; giữ nguyên cấu hình, cache và cơ chế bảo vệ upload.
-
-v2.0.2 đồng bộ các cửa sổ con bằng một khung không viền dùng chung: màu nền, thanh tiêu đề, icon theo tool, nút đóng đỏ, thẻ trắng bo góc, ô nhập và nhóm nút. Thêm/chỉnh sửa kết nối, cấp quyền OAuth, thông báo lỗi, xác nhận và thông báo cập nhật đều dùng cùng kiểu giao diện. Cửa sổ tự giới hạn theo vùng màn hình, hỗ trợ kéo tiêu đề và phím Esc; xác nhận mặc định Hủy. Cài đặt và Mạng vẫn là trang trong app, không mở cửa sổ Cài đặt cũ. Chặn đóng/lưu cấu hình khi đang kiểm tra hoặc gắn ổ. Không thay đổi kết nối hay tài khoản đang chạy trên máy khi build.
-
-v2.0.1 chia giao diện thành 5 trang độc lập cho mỗi tool. SERVER: Ổ đang chia sẻ, Cấu hình chia sẻ, Tài khoản truy cập, Mạng Tailscale, Cài đặt. CLIENT: Kết nối của tôi, Chi tiết kết nối, Hoạt động, Mạng Tailscale, Cài đặt. Thanh bên đổi nội dung và đánh dấu trang đang mở; không còn cuộn tới biểu mẫu hoặc mở hộp thoại thay cho trang. Chuyển trang giữ nguyên dòng được chọn, cấu hình chưa lưu và kết nối nền; nhấp đúp một ổ để mở trang chi tiết. Tạo chia sẻ mới mở trang cấu hình và có liên kết qua lại với trang tài khoản. Cài đặt mạng, khởi động và cập nhật có trang riêng.
-
-Một bộ cài `CyanNasSetup.exe` cài đồng thời hai ứng dụng Windows độc lập và hai shortcut: **CYAN NAS SERVER** và **CYAN NAS CLIENT**. Hai ứng dụng có thể chạy song song, có icon, cấu hình, mutex và khóa khởi động cùng Windows riêng. Từ bản 1.x, chạy bộ cài đầy đủ một lần để có cả hai tool. Asset GoogleNas.exe dành cho updater 1.x là bootstrap mang theo bộ cài đầy đủ, tránh nâng cấp thiếu hai ứng dụng.
+Logo riêng dạng chữ C với xanh cyan, xanh dương và nền graphite theo màu giao diện. Đồng bộ icon ứng dụng, taskbar, khay hệ thống, shortcut và bộ cài; ICO nhiều kích thước 16–256 px, SVG tại design/branding/cyan-nas.svg.
 
 - SERVER: chia sẻ nhiều ổ/thư mục qua SMB và Tailscale, quyền đọc/ghi, tài khoản NAS, mật khẩu mã hóa có hiện/ẩn, dừng chia sẻ có bảo vệ file mở. Không cưỡng chế đóng file hoặc xóa tài khoản.
 - CLIENT: thêm/lưu/kiểm tra/gắn nhiều nguồn thành ổ Windows; tự gắn các cấu hình đã xác thực; Tạm ngắt được lưu; theo dõi kết nối và giữ VFS/cache khi đổi mạng. Không dùng hộp đăng nhập Windows Security/VPS.
@@ -19,7 +13,7 @@ Một bộ cài `CyanNasSetup.exe` cài đồng thời hai ứng dụng Windows 
 
 Bộ cài đã tích hợp rclone 1.75.2, WinFsp 2.1 và .NET Framework 4.8 offline. Tailscale là tùy chọn cho NAS qua Internet; cài/đăng nhập/bật chạy sau đăng xuất trong mục Mạng Tailscale. Các nguồn cloud, FTP/SFTP/WebDAV không bắt buộc Tailscale.
 
-Build bằng Windows PowerShell 5.1: `./scripts/build-suite.ps1 -Test`. File chung: `dist/CyanNasSetup.exe`. Không chạy `build-setup.ps1` thiếu `-Suite` để phát hành bộ cài hai tool.
+Build bằng Windows PowerShell 5.1: `./scripts/build-suite.ps1 -Test`. File chung: `dist/CyanNasSetup.exe`. Không chạy `build-setup.ps1` thiếu `-Suite` để phát hành bộ cài CYAN NAS thống nhất.
 
 Kiểm thử: các bài cũ về NAS, updater, installer, ACL và giao diện; cấu hình mã hóa thật cho đủ 13 backend; FTP, FTPS hai chế độ TLS, SFTP password/SSH key, WebDAV và S3 Signature V4 bằng máy chủ loopback; WinFsp đọc/ghi và upload; phục hồi transport không hủy VFS/cache. Tài khoản cloud sản xuất (B2, Dropbox, OneDrive, Google, Azure) và kết nối Tailscale giữa hai máy không có thông tin xác thực để kiểm thử end-to-end. Các backend đã tích hợp, nhưng chưa coi cấu hình offline là xác nhận đăng nhập tài khoản thật.
 

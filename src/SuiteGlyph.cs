@@ -32,13 +32,11 @@ namespace GoogleNas {
   [System.Runtime.InteropServices.DllImport("user32.dll")]static extern bool DestroyIcon(IntPtr icon);
   public static Bitmap Render(bool server,int size){
    var bmp=new Bitmap(size,size);using(var g=Graphics.FromImage(bmp)){g.SmoothingMode=SmoothingMode.AntiAlias;g.ScaleTransform(size/64f,size/64f);
-    // Flat green/cyan blocks remain readable at 16px, with a dark-blue edge.
-    using(var blue=new SolidBrush(Color.FromArgb(0,103,170)))g.FillRectangle(blue,4,4,56,56);
-    using(var green=new SolidBrush(Color.FromArgb(137,201,78)))g.FillRectangle(green,4,4,26,56);
-    using(var cyan=new SolidBrush(Color.FromArgb(0,171,207)))g.FillRectangle(cyan,30,4,26,56);
-    if(size>=48){using(var badge=new SolidBrush(Color.FromArgb(0,87,145)))g.FillRectangle(badge,42,42,18,18);
-     using(var font=new Font("Segoe UI",12,FontStyle.Bold,GraphicsUnit.Pixel))using(var brush=new SolidBrush(Color.White))using(var format=new StringFormat{Alignment=StringAlignment.Center,LineAlignment=StringAlignment.Center})g.DrawString(server?"S":"C",font,brush,new RectangleF(42,41,18,19),format);
-    }
+    using(var shape=MacButton.Round(new RectangleF(1,1,62,62),12))using(var bg=new SolidBrush(Color.FromArgb(29,36,47)))g.FillPath(bg,shape);
+    using(var cyan=new SolidBrush(Color.FromArgb(66,191,218)))g.FillRectangle(cyan,13,13,11,38);
+    using(var blue=new SolidBrush(Color.FromArgb(62,153,245)))g.FillRectangle(blue,24,13,27,11);
+    using(var blue=new SolidBrush(Color.FromArgb(43,118,191)))g.FillRectangle(blue,24,40,27,11);
+    using(var edge=new Pen(Color.FromArgb(75,113,148),1.2f))using(var shape=MacButton.Round(new RectangleF(1,1,62,62),12))g.DrawPath(edge,shape);
    }return bmp;
   }
   public static Icon Icon(bool server){using(var bmp=Render(server,64)){var handle=bmp.GetHicon();try{return (Icon)System.Drawing.Icon.FromHandle(handle).Clone();}finally{DestroyIcon(handle);}}}

@@ -10,7 +10,7 @@ using System.Windows.Forms;
 using Microsoft.Win32;
 namespace GoogleNas {
  public class SuiteForm : Form {
-  readonly bool server,preview;readonly string home;readonly NasService nas;readonly StorageEngine engine;
+  readonly bool server,preview,hosted;readonly string home;readonly NasService nas;readonly StorageEngine engine;
   readonly List<Button> navigation=new List<Button>();readonly List<string> pageNames=new List<string>();
   Panel pageHeader;Label pageDescription,activityText,networkStatus;Control overviewSummary,overviewList,headerActions;Panel networkPage,settingsPage,activityPage;FlowLayoutPanel settingsBody;int activePage;
   internal int ActivePage {get{return activePage;}}
@@ -18,10 +18,10 @@ namespace GoogleNas {
   readonly TextBox share=new TextBox(),folder=new TextBox(),user=new TextBox(),password=new TextBox();readonly CheckBox readOnly=new SuiteCheckBox(),createUser=new SuiteCheckBox();readonly Button enable,stop,savePassword;readonly System.Windows.Forms.Timer timer=new System.Windows.Forms.Timer{Interval=5000};readonly NotifyIcon tray;bool busy,exiting,polling,rebindingRows,creatingShare;DateTime nextNetwork=DateTime.MinValue,nextUpdate=DateTime.UtcNow.AddMinutes(5);string selectedShare="";readonly Dictionary<string,NasItemState> states=new Dictionary<string,NasItemState>();
   public static Label Label(string text,float size=10,bool bold=false) { return new Label{Text=text,AutoSize=true,ForeColor=SuiteTheme.Ink,Font=new Font("Segoe UI",size,bold?FontStyle.Bold:FontStyle.Regular),Margin=new Padding(0,0,0,6)}; }
   public static Button Button(string text,bool primary=false) {var b=SuiteTheme.Button(text,primary);b.AutoSize=false;b.MinimumSize=Size.Empty;b.Size=new Size(140,36);b.Margin=new Padding(0,0,10,0);b.Padding=new Padding(6,0,6,0);b.Font=new Font("Segoe UI",9);return b;}
-  public SuiteForm(bool isServer,bool hidden=false,bool previewOnly=false,string directory=null) {
-   server=isServer;preview=previewOnly;home=directory??Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),server?"CyanNasServer":"CyanNasClient");new Services(home);nas=new NasService(home);if(!server)engine=new StorageEngine(home);
+  public SuiteForm(bool isServer,bool hidden=false,bool previewOnly=false,string directory=null,bool embedded=false) {
+   server=isServer;preview=previewOnly;hosted=embedded;home=directory??Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),server?"CyanNasServer":"CyanNasClient");new Services(home);nas=new NasService(home);if(!server)engine=new StorageEngine(home);
    Text=server?"CYAN NAS SERVER":"CYAN NAS CLIENT";Icon=SuiteGlyph.Icon(server);Font=new Font("Segoe UI",10);ForeColor=SuiteTheme.Ink;BackColor=SuiteTheme.Background;FormBorderStyle=FormBorderStyle.None;AutoScaleDimensions=new SizeF(96,96);AutoScaleMode=AutoScaleMode.Dpi;Size=new Size(1200,820);MinimumSize=new Size(960,640);StartPosition=FormStartPosition.CenterScreen;
-   BuildShell();
+   if(hosted){MinimumSize=Size.Empty;ShowInTaskbar=false;AutoScaleMode=AutoScaleMode.Inherit;}BuildShell();
    dashboard.FlowDirection=FlowDirection.TopDown;dashboard.WrapContents=false;dashboard.AutoSize=true;dashboard.AutoSizeMode=AutoSizeMode.GrowAndShrink;dashboard.Location=new Point(24,16);content.Controls.Add(dashboard);
    var top=new Panel{Height=82,Width=1050,Margin=new Padding(0,0,0,16)};heading.ForeColor=SuiteTheme.Ink;heading.Text=server?"Chia sẻ ổ cứng":"Kết nối của tôi";heading.Font=new Font("Segoe UI",19,FontStyle.Regular);heading.AutoSize=true;heading.SetBounds(0,8,550,34);top.Controls.Add(heading);var desc=Label(server?"Quản lý ổ đĩa và quyền truy cập trên máy chủ.":"NAS, máy chủ và cloud — truy cập như ổ đĩa Windows.",10);desc.ForeColor=SuiteTheme.Muted;desc.Location=new Point(2,49);top.Controls.Add(desc);var topActions=new FlowLayoutPanel{Anchor=AnchorStyles.Top|AnchorStyles.Right,Width=302,Height=40,Location=new Point(748,31),WrapContents=false};top.Controls.Add(topActions);
    var refresh=Button("Làm mới");refresh.Click+=async(a,b)=>await Work(RefreshData);topActions.Controls.Add(refresh);var add=Button(server?"+ Chia sẻ ổ mới":"+ Thêm kết nối",true);add.Click+=async(a,b)=>{if(server)NewShare();else await Work(AddConnection);};topActions.Controls.Add(add);dashboard.Controls.Add(top);pageHeader=top;pageDescription=desc;headerActions=topActions;
@@ -34,14 +34,14 @@ namespace GoogleNas {
    message.AutoSize=false;message.Height=42;message.ForeColor=SuiteTheme.Muted;message.Font=new Font("Segoe UI",9);message.Text="Sẵn sàng · "+Text;dashboard.Controls.Add(message);
    BuildFeaturePages();content.SizeChanged+=(a,b)=>LayoutContent();NavigatePage(0);LayoutContent();
    if(preview){SeedPreview();return;}
-   var menu=new ContextMenuStrip();menu.Items.Add("Mở "+Text,null,(a,b)=>ShowWindow());menu.Items.Add("Thoát an toàn",null,async(a,b)=>await Work(ExitSafely));tray=new NotifyIcon{Icon=Icon,Text=Text,Visible=true,ContextMenuStrip=menu};tray.DoubleClick+=(a,b)=>ShowWindow();tray.MouseClick+=(a,b)=>{if(b.Button==MouseButtons.Left)ShowWindow();};
-   FormClosing+=(a,b)=>{if(!exiting&&b.CloseReason==CloseReason.UserClosing){b.Cancel=true;WindowState=FormWindowState.Minimized;}};
-   NetworkChange.NetworkAddressChanged+=NetworkChanged;SystemEvents.PowerModeChanged+=PowerChanged;timer.Tick+=async(a,b)=>{if(busy||polling)return;polling=true;try{if(!server)await engine.Poll();await RefreshData();if(DateTime.UtcNow>=nextUpdate&&SuiteUpdate.Automatic(home)){nextUpdate=DateTime.UtcNow.AddHours(6);if(await SuiteUpdate.Available())tray.ShowBalloonTip(5000,Text,"Có bộ cài mới. Mở Cài đặt → Kiểm tra cập nhật để nâng cấp đồng bộ hai tool.",ToolTipIcon.Info);}}catch(Exception e){message.Text=e.Message;}finally{polling=false;}};
+   if(!hosted){var menu=new ContextMenuStrip();menu.Items.Add("Mở "+Text,null,(a,b)=>ShowWindow());menu.Items.Add("Thoát an toàn",null,async(a,b)=>await Work(ExitSafely));tray=new NotifyIcon{Icon=Icon,Text=Text,Visible=true,ContextMenuStrip=menu};tray.DoubleClick+=(a,b)=>ShowWindow();tray.MouseClick+=(a,b)=>{if(b.Button==MouseButtons.Left)ShowWindow();};}
+   FormClosing+=(a,b)=>{if(!hosted&&!exiting&&b.CloseReason==CloseReason.UserClosing){b.Cancel=true;WindowState=FormWindowState.Minimized;}};
+   NetworkChange.NetworkAddressChanged+=NetworkChanged;SystemEvents.PowerModeChanged+=PowerChanged;timer.Tick+=async(a,b)=>{if(busy||polling)return;polling=true;try{if(!server)await engine.Poll();await RefreshData();if(!hosted&&DateTime.UtcNow>=nextUpdate&&SuiteUpdate.Automatic(PreferencesHome)){nextUpdate=DateTime.UtcNow.AddHours(6);if(await SuiteUpdate.Available())tray.ShowBalloonTip(5000,Text,"Có bộ cài mới. Mở Cài đặt → Kiểm tra cập nhật để nâng cấp CYAN NAS.",ToolTipIcon.Info);}}catch(Exception e){message.Text=e.Message;}finally{polling=false;}};
    Shown+=async(a,b)=>{if(hidden)WindowState=FormWindowState.Minimized;await Work(async()=>{await ImportLegacy();await RefreshData();});timer.Start();};
   }
   private void BuildShell(){
    var root=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=1,RowCount=4,Margin=Padding.Empty};root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));foreach(float height in new[]{42f,62f,46f})root.RowStyles.Add(new RowStyle(SizeType.Absolute,height));root.RowStyles.Add(new RowStyle(SizeType.Percent,100));Controls.Add(root);
-   var bar=new Panel{Dock=DockStyle.Fill,BackColor=SuiteTheme.Navy,Margin=Padding.Empty};root.Controls.Add(bar,0,0);
+   var bar=new Panel{Dock=DockStyle.Fill,BackColor=SuiteTheme.Navy,Margin=Padding.Empty};root.Controls.Add(bar,0,0);if(hosted){root.RowStyles[0].Height=0;bar.Visible=false;}
    var brand=new PictureBox{Image=SuiteGlyph.Render(server,24),SizeMode=PictureBoxSizeMode.CenterImage,Dock=DockStyle.Left,Width=48};bar.Controls.Add(brand);
    var caption=Label(Text+"    ·    "+Core.Version,10,true);caption.AutoSize=false;caption.Dock=DockStyle.Fill;caption.TextAlign=ContentAlignment.MiddleLeft;bar.Controls.Add(caption);caption.BringToFront();
    var controls=new FlowLayoutPanel{Dock=DockStyle.Right,Width=132,FlowDirection=FlowDirection.LeftToRight,WrapContents=false,Margin=Padding.Empty};bar.Controls.Add(controls);caption.BringToFront();
@@ -131,11 +131,11 @@ Tailscale dùng cho kết nối NAS riêng; kết nối cloud không cần Tails
    dashboard.Controls.Add(networkPage);
    settingsPage=new FlowLayoutPanel{Name="SettingsPage",AutoSize=true,AutoSizeMode=AutoSizeMode.GrowAndShrink,WrapContents=true,FlowDirection=FlowDirection.LeftToRight,Margin=Padding.Empty};
    var settingsCard=new SuiteCard{Height=360,Padding=new Padding(24),Margin=new Padding(0,0,18,18)};
-   settingsBody=CardBody(settingsCard,"Ứng dụng & cập nhật","Thiết lập riêng cho "+Text+".");
-   var startup=new SuiteCheckBox{Text="Khởi chạy tool này cùng Windows",AutoSize=true,Height=38,Checked=SuiteStartup.Enabled(server)};
-   startup.CheckedChanged+=(a,b)=>{if(!preview)SuiteStartup.Set(server,startup.Checked);};settingsBody.Controls.Add(startup);
-   var automatic=new SuiteCheckBox{Text="Tự kiểm tra bản cập nhật mỗi 6 giờ",AutoSize=true,Height=38,Checked=SuiteUpdate.Automatic(home)};
-   automatic.CheckedChanged+=(a,b)=>{if(!preview)SuiteUpdate.SetAutomatic(home,automatic.Checked);};settingsBody.Controls.Add(automatic);
+   settingsBody=CardBody(settingsCard,"Ứng dụng & cập nhật","Thiết lập ứng dụng CYAN NAS.");
+   var startup=new SuiteCheckBox{Text="Khởi chạy tool này cùng Windows",AutoSize=true,Height=38,Checked=SuiteStartup.Enabled(server,hosted)};
+   startup.CheckedChanged+=(a,b)=>{if(!preview)SuiteStartup.Set(server,startup.Checked,hosted);};settingsBody.Controls.Add(startup);
+   var automatic=new SuiteCheckBox{Text="Tự kiểm tra bản cập nhật mỗi 6 giờ",AutoSize=true,Height=38,Checked=SuiteUpdate.Automatic(PreferencesHome)};
+   automatic.CheckedChanged+=(a,b)=>{if(!preview)SuiteUpdate.SetAutomatic(PreferencesHome,automatic.Checked);};settingsBody.Controls.Add(automatic);
    var note=Label("Phiên bản "+Core.Version+@" · Windows x64
 Bộ cài cập nhật chung cho SERVER và CLIENT.
 Thông tin đăng nhập được lưu mã hóa theo tài khoản Windows.",9);note.AutoSize=false;note.Height=90;note.ForeColor=SuiteTheme.Muted;settingsBody.Controls.Add(note);
@@ -177,12 +177,18 @@ Dữ liệu minh họa";
     if(activityText.Text=="")activityText.Text="Chưa có kết nối. Thêm nguồn lưu trữ ở trang Kết nối của tôi.";activityText.Height=Math.Max(300,activityText.Text.Split(new[]{(char)10}).Length*24);
    }
   }
-  private async Task ExitSafely(){timer.Stop();try{if(engine!=null)await engine.StopAll();exiting=true;Close();}catch{timer.Start();throw;}}
+  internal Func<Task> HostExit;
+  internal bool IsWorking {get{return busy;}}
+  private string PreferencesHome {get{return hosted?SuiteIdentity.Home:home;}}
+  internal async Task StopForHost(){timer.Stop();if(engine!=null)await engine.StopAll();}
+  internal void ResumeForHost(){if(!preview)timer.Start();}
+  internal void SyncHostPreferences(){if(settingsBody==null)return;foreach(CheckBox box in settingsBody.Controls.OfType<CheckBox>()){if(box.Text.StartsWith("Khởi chạy"))box.Checked=SuiteStartup.Enabled(server,hosted);else if(box.Text.StartsWith("Tự kiểm tra"))box.Checked=SuiteUpdate.Automatic(PreferencesHome);}}
+  private async Task ExitSafely(){if(hosted&&HostExit!=null){await HostExit();return;}timer.Stop();try{if(engine!=null)await engine.StopAll();exiting=true;Close();}catch{timer.Start();throw;}}
   public void ShowWindow(){Show();WindowState=FormWindowState.Normal;Activate();}
   private void NetworkChanged(object sender,EventArgs e){if(!IsHandleCreated||IsDisposed)return;try{BeginInvoke((Action)(()=>{if(engine!=null)engine.NetworkChanged();network.Text="Đang phục hồi mạng";}));}catch(InvalidOperationException){}}
   private void PowerChanged(object sender,PowerModeChangedEventArgs e){if(e.Mode==PowerModes.Resume)NetworkChanged(sender,EventArgs.Empty);}
   protected override void OnLoad(EventArgs e){base.OnLoad(e);var area=Screen.FromControl(this).WorkingArea;MinimumSize=new Size(Math.Min(MinimumSize.Width,area.Width),Math.Min(MinimumSize.Height,area.Height));Size=new Size(Math.Min(Width,area.Width),Math.Min(Height,area.Height));grid.RowTemplate.Height=96*DeviceDpi/96;grid.ColumnHeadersHeight=34*DeviceDpi/96;foreach(DataGridViewRow row in grid.Rows)row.Height=grid.RowTemplate.Height;LayoutContent();}
-  protected override void WndProc(ref Message m){if(m.Msg==SuiteProgram.ShowMessage){ShowWindow();return;}base.WndProc(ref m);if(m.Msg==0x84&&WindowState==FormWindowState.Normal){long raw=m.LParam.ToInt64();var p=PointToClient(new Point((short)(raw&65535),(short)((raw>>16)&65535)));int edge=Math.Max(6,6*DeviceDpi/96);bool l=p.X<edge,r=p.X>=ClientSize.Width-edge,t=p.Y<edge,b=p.Y>=ClientSize.Height-edge;if(l||r||t||b)m.Result=new IntPtr(t?(l?13:r?14:12):b?(l?16:r?17:15):l?10:11);}}
+  protected override void WndProc(ref Message m){if(!hosted&&m.Msg==SuiteProgram.ShowMessage){ShowWindow();return;}base.WndProc(ref m);if(!hosted&&m.Msg==0x84&&WindowState==FormWindowState.Normal){long raw=m.LParam.ToInt64();var p=PointToClient(new Point((short)(raw&65535),(short)((raw>>16)&65535)));int edge=Math.Max(6,6*DeviceDpi/96);bool l=p.X<edge,r=p.X>=ClientSize.Width-edge,t=p.Y<edge,b=p.Y>=ClientSize.Height-edge;if(l||r||t||b)m.Result=new IntPtr(t?(l?13:r?14:12):b?(l?16:r?17:15):l?10:11);}}
   protected override void Dispose(bool disposing){if(disposing){timer.Dispose();NetworkChange.NetworkAddressChanged-=NetworkChanged;SystemEvents.PowerModeChanged-=PowerChanged;if(tray!=null)tray.Dispose();}base.Dispose(disposing);}
   private async Task ImportLegacy(){await SuiteMigration.Import(server,home,engine);}
   private void SeedPreview(){if(server){var p=new NasProfile{Share="MEDIA",Folder=@"E:\Media",User="nasuser",CreateUser=false};states[p.Share]=new NasItemState{State="Enabled",Message="Đang chia sẻ"};var i=grid.Rows.Add("MEDIA","Đọc & ghi",@"E:\Media","Đang chia sẻ","128 GB đã dùng / 1 TB","Dừng NAS");grid.Rows[i].Tag=p;grid.Rows.Add("ARCHIVE","Chỉ đọc",@"F:\Archive","Đang chia sẻ","128 GB đã dùng / 1 TB","Dừng NAS");count.Text="02 ổ";}else{grid.Rows.Add("N:  NAS · MEDIA","CYAN NAS / SMB","100.64.0.10","Đã kết nối","128 GB / 1 TB","Mở ổ");grid.Rows.Add("G:  Google Drive","Google Drive","My Drive","Đã kết nối","128 GB / 1 TB","Mở ổ");grid.Rows.Add("P:  Project Server","SFTP","sftp.example.com","Đang nối lại","Không cung cấp quota","Kiểm tra");grid.Rows.Add("S:  Cloud Backup","Amazon S3","cyan-backup","Đã kết nối","128 GB / 1 TB","Mở ổ");count.Text="04 kết nối";capacity.Text="128 GB / 1 TB";}for(int row=0;row<grid.Rows.Count;row++){grid.Rows[row].Cells[4].Tag=!server&&row==2?-1d:0.125d;if(!server){string[] ids={"smb","drive","sftp","s3"};string[] names={"NAS · MEDIA","Google Drive","Project Server","Cloud Backup"};string[] letters={"N","G","P","S"};var item=new StorageConnection{Provider=ids[row],Name=names[row],Letter=letters[row],Verified=true,AutoConnect=true};grid.Rows[row].Tag=item;engine.Runtime(item).State=Convert.ToString(grid.Rows[row].Cells[3].Value);if(row!=2)grid.Rows[row].Cells[4].Value="128 GB / 1 TB · Trống 896 GB";grid.Rows[row].Cells[5].Value=row==2?"Kết nối lại":"Ngắt kết nối";}}network.Text="Tailscale sẵn sàng";message.Text="Xem trước giao diện native Windows · Dữ liệu minh họa";}

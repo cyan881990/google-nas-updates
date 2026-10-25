@@ -4,7 +4,10 @@ using System.Net;
 using System.Threading;
 using System.Windows.Forms;
 
-#if CYAN_SERVER
+#if CYAN_UNIFIED
+[assembly: AssemblyTitle("CYAN NAS")]
+[assembly: AssemblyProduct("CYAN NAS")]
+#elif CYAN_SERVER
 [assembly: AssemblyTitle("CYAN NAS SERVER")]
 [assembly: AssemblyProduct("CYAN NAS SERVER")]
 #elif CYAN_CLIENT
@@ -27,6 +30,7 @@ namespace GoogleNas {
             ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
             Application.EnableVisualStyles(); Application.SetCompatibleTextRenderingDefault(false);
             if (SuiteIdentity.Enabled) return SuiteProgram.Run(args);
+            if(Array.IndexOf(args,"--health-check")<0&&Array.IndexOf(args,"--render-preview")<0&&System.IO.File.Exists(System.IO.Path.Combine(Application.StartupPath,"CyanNas.exe"))){System.Diagnostics.Process.Start(System.IO.Path.Combine(Application.StartupPath,"CyanNas.exe"),Core.Args(args));return 0;}
             if(Array.IndexOf(args,"--health-check")<0&&Array.IndexOf(args,"--render-preview")<0&&System.IO.File.Exists(System.IO.Path.Combine(Application.StartupPath,"CyanNasClient.exe"))&&System.IO.File.Exists(System.IO.Path.Combine(Application.StartupPath,"CyanNasServer.exe"))) {
                 System.Diagnostics.Process.Start(System.IO.Path.Combine(Application.StartupPath,"CyanNasClient.exe"),Core.Args(args));return 0;
             }

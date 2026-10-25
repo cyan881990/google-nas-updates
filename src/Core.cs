@@ -19,7 +19,7 @@ namespace GoogleNas {
     }
     public static class Core {
         // Suite release: native Server/Client, encrypted multi-provider mounts and noninteractive, BOM-free UTF-8 config setup.
-        public const string Version = "2.1.1";
+        public const string Version = "2.2.0";
         public const string UpdateRepository = "cyan881990/google-nas-updates";
         public static string EffectiveRepository(string legacyRepository) { return UpdateRepository.Length>0?UpdateRepository:(legacyRepository??""); }
         public static JavaScriptSerializer Json { get { return new JavaScriptSerializer(); } }
