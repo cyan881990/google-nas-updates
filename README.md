@@ -1,4 +1,6 @@
-# CYAN NAS SERVER + CYAN NAS CLIENT — v2.0.0
+# CYAN NAS SERVER + CYAN NAS CLIENT — v2.0.1
+
+v2.0.1 chia giao diện thành 5 trang độc lập cho mỗi tool. SERVER: Ổ đang chia sẻ, Cấu hình chia sẻ, Tài khoản truy cập, Mạng Tailscale, Cài đặt. CLIENT: Kết nối của tôi, Chi tiết kết nối, Hoạt động, Mạng Tailscale, Cài đặt. Thanh bên đổi nội dung và đánh dấu trang đang mở; không còn cuộn tới biểu mẫu hoặc mở hộp thoại thay cho trang. Chuyển trang giữ nguyên dòng được chọn, cấu hình chưa lưu và kết nối nền; nhấp đúp một ổ để mở trang chi tiết. Tạo chia sẻ mới mở trang cấu hình và có liên kết qua lại với trang tài khoản. Cài đặt mạng, khởi động và cập nhật có trang riêng.
 
 Một bộ cài `CyanNasSetup.exe` cài đồng thời hai ứng dụng Windows độc lập và hai shortcut: **CYAN NAS SERVER** và **CYAN NAS CLIENT**. Hai ứng dụng có thể chạy song song, có icon, cấu hình, mutex và khóa khởi động cùng Windows riêng. Từ bản 1.x, chạy bộ cài đầy đủ một lần để có cả hai tool. Asset GoogleNas.exe dành cho updater 1.x là bootstrap mang theo bộ cài đầy đủ, tránh nâng cấp thiếu hai ứng dụng.
 
