@@ -1,4 +1,6 @@
-# CYAN NAS SERVER + CYAN NAS CLIENT — v2.1.0
+# CYAN NAS SERVER + CYAN NAS CLIENT — v2.1.1
+
+v2.1.1 đổi logo từ đám mây/cụm ổ sang khối phẳng xanh lá và xanh cyan với cạnh xanh dương đậm theo kiểu RaiDrive. Dấu S/C chỉ xuất hiện từ 48 px để phân biệt hai tool; icon nhỏ giữ hình khối đơn giản. Đồng bộ biểu tượng tiêu đề, taskbar, khay hệ thống, shortcut và bộ cài; ICO gồm 9 kích thước 16–256 px. Có bản SVG tại design/branding/.
 
 v2.1.0 thiết kế lại theo bố cục tiện ích quản lý ổ tham khảo [RaiDrive](https://docs.raidrive.com/gui/getting-started/first-drive/): nền graphite, thanh công cụ Thêm/Làm mới/Cài đặt/Mạng, điều hướng ngang giữ 5 trang riêng cho mỗi tool. Danh sách theo từng ổ có icon nguồn, tên, máy chủ, trạng thái, quota và bốn thao tác kết nối/ngắt, chỉnh sửa, mở thư mục, bỏ lưu. Trạng thái chia sẻ máy chủ lấy từ kết quả kiểm tra thực, không suy đoán bằng ngôn ngữ thông báo. Bộ lọc Cloud/NAS không xóa bản nháp. Khung cửa sổ, biểu mẫu và thông báo dùng cùng tông tối; nút cửa sổ chuyển sang góc phải. Bộ icon vector CYAN NAS riêng: Server dạng cụm ổ, Client đám mây/ổ đĩa, icon 13 nguồn lưu trữ và bộ cài 9 kích thước. Không sử dụng logo hoặc tên RaiDrive làm nhận diện ứng dụng; giữ nguyên cấu hình, cache và cơ chế bảo vệ upload.
 
