@@ -24,6 +24,8 @@ namespace GoogleNas {
  public class StorageAuthenticationException : Exception { public StorageAuthenticationException(string message):base(message){} }
  public class StorageEngine {
   private bool stopping;
+  private static readonly object inputEncodingGate=new object();
+  private Process StartCommand(ProcessStartInfo info){lock(inputEncodingGate){Encoding previous=null;try{try{previous=Console.InputEncoding;Console.InputEncoding=new UTF8Encoding(false);}catch(IOException){}return Process.Start(info);}finally{if(previous!=null){try{Console.InputEncoding=previous;}catch(IOException){}}}}}
   internal Action<string> Diagnostics {get;set;}
   public readonly StorageStore Store;public readonly string Rclone;private readonly NasService bridge;
   private readonly Dictionary<string,StorageRuntime> live=new Dictionary<string,StorageRuntime>();
@@ -34,11 +36,11 @@ namespace GoogleNas {
   private ProcessStartInfo Info(IEnumerable<string> args,string config=null) {
    if(!File.Exists(Rclone))throw new Exception("Thiếu rclone tích hợp. Chạy lại bộ cài để sửa.");
    var list=args.ToList();if(config!=null){list.AddRange(new[]{"--config",config,"--ask-password=false"});}
-   var info=new ProcessStartInfo(Rclone,Core.Args(list)){UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,RedirectStandardError=true,RedirectStandardInput=true};info.EnvironmentVariables["RCLONE_CONFIG_PASS"]=Store.Key;return info;
+   var info=new ProcessStartInfo(Rclone,Core.Args(list)){UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,RedirectStandardError=true,RedirectStandardInput=true,StandardOutputEncoding=new UTF8Encoding(false),StandardErrorEncoding=new UTF8Encoding(false)};info.EnvironmentVariables["RCLONE_CONFIG_PASS"]=Store.Key;return info;
   }
   private async Task<string> Run(IEnumerable<string> args,string config=null,string input=null,int timeout=60000) {
-   using(var p=Process.Start(Info(args,config))) {
-    var stdout=p.StandardOutput.ReadToEndAsync();var stderr=p.StandardError.ReadToEndAsync();if(input!=null)await p.StandardInput.WriteLineAsync(input);p.StandardInput.Close();
+   using(var p=StartCommand(Info(args,config))) {
+    var stdout=p.StandardOutput.ReadToEndAsync();var stderr=p.StandardError.ReadToEndAsync();if(input!=null){byte[] bytes=new UTF8Encoding(false).GetBytes(input+"\n");try{await p.StandardInput.BaseStream.WriteAsync(bytes,0,bytes.Length);await p.StandardInput.BaseStream.FlushAsync();}finally{Array.Clear(bytes,0,bytes.Length);}}p.StandardInput.Close();
     var wait=Task.Run(()=>p.WaitForExit());if(await Task.WhenAny(wait,Task.Delay(timeout))!=wait){try{p.Kill();}catch{}await wait;await stdout;await stderr;throw new Exception("Hết thời gian chờ kết nối. Kiểm tra máy chủ và mạng rồi thử lại.");}
     string output=await stdout;string error=await stderr;if(p.ExitCode!=0&&Diagnostics!=null)Diagnostics("rclone command failure: "+string.Join(" ",args.Take(2))+" · "+error);if(p.ExitCode!=0&&(error.IndexOf("doesn't support about",StringComparison.OrdinalIgnoreCase)>=0||error.IndexOf("does not support about",StringComparison.OrdinalIgnoreCase)>=0))throw new StorageQuotaUnsupportedException();if(p.ExitCode!=0&&new[]{"login incorrect","authentication failed","authorization failed","invalid_grant","access denied","401 unauthorized","invalid credentials","logon failure","wrong password"}.Any(x=>error.IndexOf(x,StringComparison.OrdinalIgnoreCase)>=0))throw new StorageAuthenticationException("Đăng nhập bị từ chối. Tự kết nối được tắt để tránh khóa tài khoản; hãy kiểm tra cấu hình.");if(p.ExitCode!=0)throw new Exception("Không hoàn tất kết nối (rclone "+p.ExitCode+"). Kiểm tra địa chỉ, tài khoản, quyền truy cập và TLS/SSH. Không có mật khẩu được ghi ra thông báo.");return output;
    }
