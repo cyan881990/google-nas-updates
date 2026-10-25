@@ -24,6 +24,7 @@ namespace GoogleNas {
  public class StorageAuthenticationException : Exception { public StorageAuthenticationException(string message):base(message){} }
  public class StorageEngine {
   private bool stopping;
+  internal Action<string> Diagnostics {get;set;}
   public readonly StorageStore Store;public readonly string Rclone;private readonly NasService bridge;
   private readonly Dictionary<string,StorageRuntime> live=new Dictionary<string,StorageRuntime>();
   public StorageEngine(string home,string rclone=null) { Store=new StorageStore(home);bridge=new NasService(home);Rclone=rclone??new Services(home).Rclone; }
@@ -39,7 +40,7 @@ namespace GoogleNas {
    using(var p=Process.Start(Info(args,config))) {
     var stdout=p.StandardOutput.ReadToEndAsync();var stderr=p.StandardError.ReadToEndAsync();if(input!=null)await p.StandardInput.WriteLineAsync(input);p.StandardInput.Close();
     var wait=Task.Run(()=>p.WaitForExit());if(await Task.WhenAny(wait,Task.Delay(timeout))!=wait){try{p.Kill();}catch{}await wait;await stdout;await stderr;throw new Exception("Hết thời gian chờ kết nối. Kiểm tra máy chủ và mạng rồi thử lại.");}
-    string output=await stdout;string error=await stderr;if(p.ExitCode!=0&&(error.IndexOf("doesn't support about",StringComparison.OrdinalIgnoreCase)>=0||error.IndexOf("does not support about",StringComparison.OrdinalIgnoreCase)>=0))throw new StorageQuotaUnsupportedException();if(p.ExitCode!=0&&new[]{"login incorrect","authentication failed","authorization failed","invalid_grant","access denied","401 unauthorized","invalid credentials","logon failure","wrong password"}.Any(x=>error.IndexOf(x,StringComparison.OrdinalIgnoreCase)>=0))throw new StorageAuthenticationException("Đăng nhập bị từ chối. Tự kết nối được tắt để tránh khóa tài khoản; hãy kiểm tra cấu hình.");if(p.ExitCode!=0)throw new Exception("Không hoàn tất kết nối (rclone "+p.ExitCode+"). Kiểm tra địa chỉ, tài khoản, quyền truy cập và TLS/SSH. Không có mật khẩu được ghi ra thông báo.");return output;
+    string output=await stdout;string error=await stderr;if(p.ExitCode!=0&&Diagnostics!=null)Diagnostics("rclone command failure: "+string.Join(" ",args.Take(2))+" · "+error);if(p.ExitCode!=0&&(error.IndexOf("doesn't support about",StringComparison.OrdinalIgnoreCase)>=0||error.IndexOf("does not support about",StringComparison.OrdinalIgnoreCase)>=0))throw new StorageQuotaUnsupportedException();if(p.ExitCode!=0&&new[]{"login incorrect","authentication failed","authorization failed","invalid_grant","access denied","401 unauthorized","invalid credentials","logon failure","wrong password"}.Any(x=>error.IndexOf(x,StringComparison.OrdinalIgnoreCase)>=0))throw new StorageAuthenticationException("Đăng nhập bị từ chối. Tự kết nối được tắt để tránh khóa tài khoản; hãy kiểm tra cấu hình.");if(p.ExitCode!=0)throw new Exception("Không hoàn tất kết nối (rclone "+p.ExitCode+"). Kiểm tra địa chỉ, tài khoản, quyền truy cập và TLS/SSH. Không có mật khẩu được ghi ra thông báo.");return output;
    }
   }
   public async Task<Dictionary<string,string>> ReadExternalConfig(string config,string remote){var text=await Run(new[]{"config","dump"},config);var data=Core.Json.Deserialize<Dictionary<string,Dictionary<string,string>>>(text);return data.ContainsKey(remote)?data[remote]:null;}
@@ -56,7 +57,9 @@ namespace GoogleNas {
    string temp=cfg+".prepare-"+Guid.NewGuid().ToString("N");
    try {
     var text=new StringBuilder("[remote]\n");foreach(var pair in data) { if(pair.Value.IndexOfAny(new[]{'\r','\n','\0'})>=0)throw new Exception("Cấu hình không hợp lệ.");text.Append(pair.Key).Append(" = ").Append(pair.Value).Append('\n'); }
-    File.WriteAllText(temp,text.ToString(),new UTF8Encoding(false));await Run(new[]{"config","encryption","set"},temp,Store.Key+"\n"+Store.Key);
+    File.WriteAllText(temp,text.ToString(),new UTF8Encoding(false));string shell=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System),@"WindowsPowerShell\v1.0\powershell.exe");
+    string passwordCommand=Core.Args(new[]{shell,"-NoLogo","-NoProfile","-NonInteractive","-WindowStyle","Hidden","-Command","[Console]::Out.Write($env:RCLONE_CONFIG_PASS)"});
+    await Run(new[]{"config","encryption","set","--password-command",passwordCommand},temp);
     if(File.Exists(cfg))File.Replace(temp,cfg,null);else File.Move(temp,cfg);
    } finally { if(File.Exists(temp))File.Delete(temp); }
    bool needsOAuth=StorageProviders.Find(p.Provider).OAuth && !data.ContainsKey("token") && !data.ContainsKey("service_account_credentials");

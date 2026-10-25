@@ -18,7 +18,7 @@ namespace GoogleNas {
         public string Repository = Core.UpdateRepository;
     }
     public static class Core {
-        // Desktop UI and multiresolution icon release; preserve the existing data and update identifiers during upgrades.
+        // Suite release: native Server/Client, encrypted multi-provider mounts and noninteractive config setup.
         public const string Version = "2.0.0";
         public const string UpdateRepository = "cyan881990/google-nas-updates";
         public static string EffectiveRepository(string legacyRepository) { return UpdateRepository.Length>0?UpdateRepository:(legacyRepository??""); }
