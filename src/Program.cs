@@ -4,9 +4,16 @@ using System.Net;
 using System.Threading;
 using System.Windows.Forms;
 
+#if CYAN_SERVER
+[assembly: AssemblyTitle("CYAN NAS SERVER")]
+[assembly: AssemblyProduct("CYAN NAS SERVER")]
+#elif CYAN_CLIENT
+[assembly: AssemblyTitle("CYAN NAS CLIENT")]
+[assembly: AssemblyProduct("CYAN NAS CLIENT")]
+#else
 [assembly: AssemblyTitle("CYAN NAS")]
-// Keep the legacy product identifier so versions 1.2.3/1.2.4 can validate this update.
 [assembly: AssemblyProduct("Google NAS")]
+#endif
 
 namespace GoogleNas {
     static class Program {
@@ -19,6 +26,10 @@ namespace GoogleNas {
         static int Main(string[] args) {
             ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
             Application.EnableVisualStyles(); Application.SetCompatibleTextRenderingDefault(false);
+            if (SuiteIdentity.Enabled) return SuiteProgram.Run(args);
+            if(Array.IndexOf(args,"--health-check")<0&&Array.IndexOf(args,"--render-preview")<0&&System.IO.File.Exists(System.IO.Path.Combine(Application.StartupPath,"CyanNasClient.exe"))&&System.IO.File.Exists(System.IO.Path.Combine(Application.StartupPath,"CyanNasServer.exe"))) {
+                System.Diagnostics.Process.Start(System.IO.Path.Combine(Application.StartupPath,"CyanNasClient.exe"),Core.Args(args));return 0;
+            }
             if (Array.IndexOf(args, "--health-check") >= 0) {
                 try {
                     Core.Validate(new Settings());

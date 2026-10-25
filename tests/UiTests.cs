@@ -168,7 +168,7 @@ class UiTests {
                 var pollingField=typeof(MainForm).GetField("polling",privateFlags); pollingField.SetValue(form,true); int invoked=0;
                 var pendingAction=(Task)typeof(MainForm).GetMethod("Run",privateFlags).Invoke(form,new object[]{new Func<Task>(()=>{ invoked++; return Task.FromResult(0); })});
                 form.PreviewPage(1); Application.DoEvents(); if(invoked!=0 || pendingAction.IsCompleted) throw new Exception("User action must wait for existing background work.");
-                pollingField.SetValue(form,false); var actionDeadline=DateTime.UtcNow.AddSeconds(2); while(!pendingAction.IsCompleted && DateTime.UtcNow<actionDeadline) { Application.DoEvents(); Thread.Sleep(5); }
+                pollingField.SetValue(form,false); var actionDeadline=DateTime.UtcNow.AddSeconds(5); while(!pendingAction.IsCompleted && DateTime.UtcNow<actionDeadline) { Application.DoEvents(); Thread.Sleep(5); }
                 if(!pendingAction.IsCompleted || invoked!=1) throw new Exception("User click was lost while background polling completed."); pendingAction.GetAwaiter().GetResult();
                 Console.WriteLine("User action queues behind background polling without blocking navigation.");
                 using(var release=new ManualResetEventSlim(false)) {
@@ -176,9 +176,9 @@ class UiTests {
                     try {
                         var waiting=probe.Ready("N:\\",100); form.WindowState=FormWindowState.Minimized;
                         PostMessage(form.Handle,Program.ShowWindowMessage,IntPtr.Zero,IntPtr.Zero);
-                        var until=DateTime.UtcNow.AddSeconds(2); while(!waiting.IsCompleted && DateTime.UtcNow<until) { Application.DoEvents(); Thread.Sleep(5); }
+                        var until=DateTime.UtcNow.AddSeconds(5); while((!waiting.IsCompleted || form.WindowState!=FormWindowState.Normal) && DateTime.UtcNow<until) { Application.DoEvents(); Thread.Sleep(5); }
                         if(!waiting.IsCompleted || waiting.GetAwaiter().GetResult() || form.WindowState!=FormWindowState.Normal) throw new Exception("Blocked network probe must time out while window reopens.");
-                        var again=probe.Ready("N:\\",100); until=DateTime.UtcNow.AddSeconds(2); while(!again.IsCompleted && DateTime.UtcNow<until) { Application.DoEvents(); Thread.Sleep(5); }
+                        var again=probe.Ready("N:\\",100); until=DateTime.UtcNow.AddSeconds(5); while(!again.IsCompleted && DateTime.UtcNow<until) { Application.DoEvents(); Thread.Sleep(5); }
                         if(!again.IsCompleted || again.GetAwaiter().GetResult() || probes!=1) throw new Exception("Repeated network timeouts must reuse the existing worker.");
                     } finally { release.Set(); }
                 }

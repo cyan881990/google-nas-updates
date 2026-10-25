@@ -1,4 +1,22 @@
-# CYAN NAS cho Windows — v1.4.2
+# CYAN NAS SERVER + CYAN NAS CLIENT — v2.0.0
+
+Một bộ cài `CyanNasSetup.exe` cài đồng thời hai ứng dụng Windows độc lập và hai shortcut: **CYAN NAS SERVER** và **CYAN NAS CLIENT**. Hai ứng dụng có thể chạy song song, có icon, cấu hình, mutex và khóa khởi động cùng Windows riêng. Từ bản 1.x, chạy bộ cài đầy đủ một lần để có cả hai tool. Asset GoogleNas.exe dành cho updater 1.x là bootstrap mang theo bộ cài đầy đủ, tránh nâng cấp thiếu hai ứng dụng.
+
+- SERVER: chia sẻ nhiều ổ/thư mục qua SMB và Tailscale, quyền đọc/ghi, tài khoản NAS, mật khẩu mã hóa có hiện/ẩn, dừng chia sẻ có bảo vệ file mở. Không cưỡng chế đóng file hoặc xóa tài khoản.
+- CLIENT: thêm/lưu/kiểm tra/gắn nhiều nguồn thành ổ Windows; tự gắn các cấu hình đã xác thực; Tạm ngắt được lưu; theo dõi kết nối và giữ VFS/cache khi đổi mạng. Không dùng hộp đăng nhập Windows Security/VPS.
+- Nguồn kết nối: NAS/SMB; FTP; FTPS Explicit hoặc Implicit TLS; SFTP mật khẩu hoặc khóa SSH; WebDAV; Amazon S3; Backblaze B2; Dropbox; Microsoft OneDrive; Google Drive; Microsoft Azure Blob Storage; Microsoft Azure Files; Google Cloud Storage.
+- Dung lượng: SERVER đọc dung lượng ổ vật lý chứa thư mục, không cộng lặp các thư mục cùng ổ. CLIENT đọc quota nguồn khi hỗ trợ; hiển thị đã dùng/tổng/còn trống và thanh dung lượng. Lỗi mạng và không hỗ trợ quota được phân biệt; không lấy dung lượng ảo mặc định của WinFsp và không quét toàn bộ bucket để ước lượng.
+- Đăng nhập cloud qua trình duyệt; SFTP bắt buộc known_hosts đã xác minh; FTPS giữ kiểm tra chứng chỉ. Có thể Lưu cấu hình trước khi xác thực; tự kết nối chỉ bật sau kiểm tra thành công.
+- Cấu hình Client lưu DPAPI; file rclone được mã hóa riêng, khóa mã hóa lưu DPAPI. Runtime/cache theo kết nối trong `%LOCALAPPDATA%\CyanNasClient`; cấu hình Server trong `%LOCALAPPDATA%\CyanNasServer`. Cấu hình NAS và Google Drive 1.x được nhập khi có thể, nguồn cũ vẫn được giữ lại. Nếu nguồn cũ chưa nhập được, thêm kết nối và cấp quyền lại.
+
+Bộ cài đã tích hợp rclone 1.75.2, WinFsp 2.1 và .NET Framework 4.8 offline. Tailscale là tùy chọn cho NAS qua Internet; cài/đăng nhập/bật chạy sau đăng xuất trong mục Mạng Tailscale. Các nguồn cloud, FTP/SFTP/WebDAV không bắt buộc Tailscale.
+
+Build bằng Windows PowerShell 5.1: `./scripts/build-suite.ps1 -Test`. File chung: `dist/CyanNasSetup.exe`. Không chạy `build-setup.ps1` thiếu `-Suite` để phát hành bộ cài hai tool.
+
+Kiểm thử: các bài cũ về NAS, updater, installer, ACL và giao diện; cấu hình mã hóa thật cho đủ 13 backend; FTP, FTPS hai chế độ TLS, SFTP password/SSH key, WebDAV và S3 Signature V4 bằng máy chủ loopback; WinFsp đọc/ghi và upload; phục hồi transport không hủy VFS/cache. Tài khoản cloud sản xuất (B2, Dropbox, OneDrive, Google, Azure) và kết nối Tailscale giữa hai máy không có thông tin xác thực để kiểm thử end-to-end. Các backend đã tích hợp, nhưng chưa coi cấu hình offline là xác nhận đăng nhập tài khoản thật.
+
+---
+
 
 v1.4.2 chuẩn hóa toàn bộ nhóm nút desktop: cao 40 px ở DPI 100%, rộng bằng nhau trong nhóm, cách nhau 10 px, chữ một dòng và không tự đổi kích thước theo trạng thái. Nhóm danh sách chỉ chuyển thành một cột đồng đều khi cửa sổ thực sự hẹp. Gom Lưu/Kiểm tra mật khẩu cùng hàng, tách Đặt lại mật khẩu; gom các thao tác Tailscale thành hai hàng. Dừng NAS chỉ còn tại danh sách, bỏ nút trùng; trạng thái chia sẻ gọn hai hàng thao tác. Nút chính xanh, dừng/ngắt/bỏ lưu đỏ, thao tác phụ trung tính. Kiểm thử kích thước, khoảng cách, độ rộng chữ và DPI 100–200% trên cả sáu trang.
 

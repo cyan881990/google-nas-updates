@@ -23,7 +23,7 @@ jobs:
           key: windows-offline-${{ hashFiles('scripts/prepare-dependencies.ps1') }}
       - name: Build and test
         shell: powershell
-        run: ./scripts/build.ps1 -Test -OfflineInstaller
+        run: ./scripts/build-suite.ps1 -Test
       - name: Verify release tag matches source version
         if: startsWith(github.ref, 'refs/tags/')
         shell: powershell
@@ -58,4 +58,4 @@ jobs:
           VERSION=$(sed -n 's/.*const string Version = "\([0-9.]*\)";.*/\1/p' src/Core.cs)
           TAG="v$VERSION"
           if [[ "$RELEASE_TAG" == v* && "$RELEASE_TAG" != "$TAG" ]]; then exit 1; fi
-          gh release create "$TAG" artifacts/dist/GoogleNas.exe artifacts/dist/GoogleNas.exe.sha256 artifacts/dist/GoogleNasSetup.exe artifacts/dist/GoogleNasSetup.exe.sha256 artifacts/dist/CyanNasSetup.exe artifacts/dist/CyanNasSetup.exe.sha256 --target "$GITHUB_SHA" --title "CYAN NAS $VERSION" --generate-notes
+          gh release create "$TAG" artifacts/dist/GoogleNas.exe artifacts/dist/GoogleNas.exe.sha256 artifacts/dist/GoogleNasSetup.exe artifacts/dist/GoogleNasSetup.exe.sha256 artifacts/dist/CyanNasSetup.exe artifacts/dist/CyanNasSetup.exe.sha256 artifacts/dist/CyanNasServer.exe artifacts/dist/CyanNasServer.exe.sha256 artifacts/dist/CyanNasClient.exe artifacts/dist/CyanNasClient.exe.sha256 --target "$GITHUB_SHA" --title "CYAN NAS $VERSION" --generate-notes

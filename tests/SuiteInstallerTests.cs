@@ -1,0 +1,7 @@
+using System;
+using System.IO;
+using System.Runtime.InteropServices;
+using GoogleNasInstaller;
+class SuiteInstallerTests {
+ [STAThread]static int Main(string[] args){try{if(!SetupEngine.SuitePackage)throw new Exception("Suite define missing");string root=Path.GetFullPath(args[0]);string target=Path.Combine(root,"target"),menu=Path.Combine(root,"menu");Directory.CreateDirectory(target);foreach(var name in new[]{"CyanNasServer.exe","CyanNasClient.exe","Uninstall.exe"})File.WriteAllText(Path.Combine(target,name),"fixture only");var error=SetupEngine.CreateShortcuts(menu,target);if(error!=null)throw new Exception(error);foreach(var role in new[]{"SERVER","CLIENT"}){string link=Path.Combine(menu,"CYAN NAS "+role+".lnk");if(!File.Exists(link))throw new Exception("Missing shortcut: "+role);object shell=Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell"));object shortcut=null;try{dynamic s=shell;shortcut=s.CreateShortcut(link);dynamic l=shortcut;string name=role=="SERVER"?"CyanNasServer.exe":"CyanNasClient.exe";if(!string.Equals((string)l.TargetPath,Path.Combine(target,name),StringComparison.OrdinalIgnoreCase))throw new Exception("Wrong target "+role);}finally{if(shortcut!=null)Marshal.FinalReleaseComObject(shortcut);Marshal.FinalReleaseComObject(shell);}}Console.WriteLine("Combined installer: SERVER and CLIENT shortcuts have independent correct targets.");return 0;}catch(Exception e){Console.Error.WriteLine(e);return 1;}}
+}

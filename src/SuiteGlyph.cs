@@ -1,0 +1,11 @@
+using System;
+using System.Drawing;
+using System.Drawing.Drawing2D;
+namespace GoogleNas {
+ public static class SuiteGlyph {
+  public static Bitmap Image(string name,int size,Color color){var b=new Bitmap(size,size);using(var g=Graphics.FromImage(b)){g.SmoothingMode=SmoothingMode.AntiAlias;g.ScaleTransform(size/24f,size/24f);using(var pen=new Pen(color,1.7f)){if(name=="cloud"){g.DrawArc(pen,2,8,10,10,90,180);g.DrawArc(pen,7,3,12,14,180,210);g.DrawArc(pen,14,9,8,9,270,180);g.DrawLine(pen,6,18,18,18);}else if(name=="user"){g.DrawEllipse(pen,8,3,8,8);g.DrawArc(pen,4,12,16,15,180,180);}else if(name=="network"){g.DrawEllipse(pen,9,2,6,6);g.DrawRectangle(pen,2,17,6,5);g.DrawRectangle(pen,16,17,6,5);g.DrawLine(pen,12,8,12,13);g.DrawLine(pen,5,13,19,13);g.DrawLine(pen,5,13,5,17);g.DrawLine(pen,19,13,19,17);}else if(name=="settings"){g.DrawEllipse(pen,4,4,16,16);g.DrawEllipse(pen,9,9,6,6);}else if(name=="client"){g.DrawRectangle(pen,2,3,20,14);g.DrawLine(pen,12,17,12,22);g.DrawLine(pen,7,22,17,22);}else{g.DrawRectangle(pen,3,4,18,16);g.DrawLine(pen,3,13,21,13);g.DrawLine(pen,6,17,8,17);g.DrawLine(pen,11,17,13,17);}}}return b;}
+  [System.Runtime.InteropServices.DllImport("user32.dll")]static extern bool DestroyIcon(IntPtr icon);
+  public static Bitmap Render(bool server,int size){var bmp=new Bitmap(size,size);using(var g=Graphics.FromImage(bmp)){g.SmoothingMode=SmoothingMode.AntiAlias;using(var path=MacButton.Round(new RectangleF(0,0,size,size),size*0.24f))using(var brush=new LinearGradientBrush(new Rectangle(0,0,size,size),Color.FromArgb(34,175,255),Color.FromArgb(0,95,225),45))g.FillPath(brush,path);int glyphSize=(int)(size*0.62);using(var glyph=Image(server?"server":"client",glyphSize,Color.White))g.DrawImage(glyph,(size-glyphSize)/2,(size-glyphSize)/2);}return bmp;}
+  public static Icon Icon(bool server){using(var bmp=new Bitmap(64,64)){using(var g=Graphics.FromImage(bmp)){g.SmoothingMode=SmoothingMode.AntiAlias;using(var path=MacButton.Round(new RectangleF(0,0,64,64),15))using(var brush=new LinearGradientBrush(new Rectangle(0,0,64,64),Color.FromArgb(34,175,255),Color.FromArgb(0,95,225),45))g.FillPath(brush,path);using(var glyph=Image(server?"server":"client",40,Color.White))g.DrawImage(glyph,12,12);}var handle=bmp.GetHicon();try{return (Icon)System.Drawing.Icon.FromHandle(handle).Clone();}finally{DestroyIcon(handle);}}}
+ }
+}

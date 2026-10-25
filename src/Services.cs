@@ -18,12 +18,15 @@ namespace GoogleNas {
         public readonly string Home;
         public string Config { get { return Path.Combine(Home, "rclone.conf"); } }
         public string Rclone { get {
+            if(!string.IsNullOrEmpty(ExecutableOverride))return ExecutableOverride;
             string bundled = Path.Combine(System.Windows.Forms.Application.StartupPath, "runtime", "rclone.exe");
             return File.Exists(bundled) ? bundled : Path.Combine(Home, "tools", "rclone.exe");
         } }
         public string Cache { get { return Path.Combine(Home, "cache"); } }
         public string Log { get { return Path.Combine(Home, "rclone.log"); } }
         public Process Mount;
+        public string ExecutableOverride;
+        public string ConfigPassword,VolumeName="CYAN NAS";
         private int port;
         private string password;
         public Services() : this(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "GoogleNas")) { }
@@ -87,7 +90,8 @@ namespace GoogleNas {
             int code = p.ExitCode; p.Dispose(); if (code != 0) throw new Exception("Kết nối Google chưa hoàn tất. Thử lại và cấp quyền trong trình duyệt.");
         }
         public void RequireRclone() { if (!File.Exists(Rclone)) throw new Exception("Thiếu thành phần ổ đĩa. Chạy lại GoogleNasSetup.exe để sửa bản cài."); }
-        public void Start(Settings s) {
+        public void Start(Settings s) { Start(s,false); }
+        public void Start(Settings s,bool readOnly) {
             Core.Validate(s); RequireRclone();
             if (!WinFspInstalled) throw new Exception("Driver ổ đĩa chưa sẵn sàng. Chạy GoogleNasSetup.exe để cài hoặc khởi động lại Windows nếu vừa cài xong.");
             if (!File.Exists(Config)) throw new Exception("Kết nối tài khoản Google trước.");
@@ -100,9 +104,11 @@ namespace GoogleNas {
             var args = new[] {"mount", s.Remote + ":" + s.Folder.Trim('/'), s.Letter + ":", "--config", Config,
                 "--vfs-cache-mode", "full", "--cache-dir", Cache, "--vfs-cache-max-size", s.CacheGB + "G",
                 "--vfs-cache-max-age", "72h", "--vfs-write-back", "5s", "--dir-cache-time", "5m", "--poll-interval", "30s",
-                "--network-mode", "--volname", "CYAN NAS", "--log-file", Log, "--log-level", "INFO", "--rc", "--rc-addr", "127.0.0.1:" + port};
-            var info = new ProcessStartInfo(Rclone, Core.Args(args)) { UseShellExecute = false, CreateNoWindow = true };
+                "--network-mode", "--volname", VolumeName, "--log-file", Log, "--log-level", "INFO", "--rc", "--rc-addr", "127.0.0.1:" + port};
+            var mountArgs=args.ToList(); if(!string.IsNullOrEmpty(ConfigPassword))mountArgs.AddRange(new[]{"--contimeout","10s","--timeout","30s","--low-level-retries","3"}); if(readOnly) mountArgs.Add("--read-only");
+            var info = new ProcessStartInfo(Rclone, Core.Args(mountArgs)) { UseShellExecute = false, CreateNoWindow = true };
             info.EnvironmentVariables["RCLONE_RC_USER"] = "googlenas"; info.EnvironmentVariables["RCLONE_RC_PASS"] = password;
+            if(!string.IsNullOrEmpty(ConfigPassword)) info.EnvironmentVariables["RCLONE_CONFIG_PASS"]=ConfigPassword;
             Mount = Process.Start(info);
         }
         public async Task<Dictionary<string, object>> Rc(string endpoint) {
