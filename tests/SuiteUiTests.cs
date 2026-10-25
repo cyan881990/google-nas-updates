@@ -16,6 +16,9 @@ class SuiteUiTests {
  }
  [STAThread]static int Main(string[] args){try{Application.EnableVisualStyles();Application.SetCompatibleTextRenderingDefault(false);string root=Path.GetFullPath(args[0]);Directory.CreateDirectory(root);
  foreach(bool server in new[]{true,false})using(var form=new SuiteForm(server,false,true,Path.Combine(root,server?"server-data":"client-data"))){form.ShowInTaskbar=false;form.StartPosition=FormStartPosition.Manual;form.Location=new Point(-10000,-10000);form.Show();Application.DoEvents();form.MinimumSize=Size.Empty;form.MaximumSize=new Size(8000,8000);
+  var drives=All(form).OfType<DataGridView>().Single();
+  if(form.BackColor!=SuiteTheme.Background||drives.ColumnCount!=9||drives.Columns.Cast<DataGridViewColumn>().Where(c=>c.Index>=5).Any(c=>!c.Visible))throw new Exception("Drive list must expose four row actions in the dark shell");
+  if(server){string before=Convert.ToString(drives.Rows[0].Cells[3].Value);drives.Rows[0].Cells[3].Value="Localized status text";if(!form.RowConnected(drives.Rows[0]))throw new Exception("Server action state must use actual share state, not message wording");drives.Rows[0].Cells[3].Value=before;}
   foreach(int width in new[]{1024,1366,1920}){
    form.Size=new Size(width,1000);Application.DoEvents();
    for(int page=0;page<5;page++){
@@ -39,6 +42,7 @@ class SuiteUiTests {
    form.NavigatePage(1);var input=All(form).OfType<TextBox>().Single(t=>t.AccessibleName=="Tên chia sẻ");
    input.Text="PAGE-DRAFT";form.NavigatePage(2);form.NavigatePage(4);form.NavigatePage(1);
    if(input.Text!="PAGE-DRAFT")throw new Exception("Navigation discarded unsaved share configuration");
+   var busyField=typeof(SuiteForm).GetField("busy",BindingFlags.NonPublic|BindingFlags.Instance);busyField.SetValue(form,true);All(form).OfType<Button>().Single(b=>b.Name=="ToolbarAdd").PerformClick();if(input.Text!="PAGE-DRAFT")throw new Exception("Toolbar Add replaced a draft during an active operation");busyField.SetValue(form,false);
   }
   if(server){var grid=All(form).OfType<DataGridView>().Single();grid.ClearSelection();grid.Rows[0].Selected=true;Application.DoEvents();var enable=All(form).OfType<Button>().FirstOrDefault(b=>b.Text=="Đã bật chia sẻ");if(enable==null||enable.Enabled)throw new Exception("Enabled server share must not be enabled twice");}
  }
@@ -48,6 +52,7 @@ class SuiteUiTests {
   using(var confirm=new SuiteNoticeWindow("Bỏ cấu hình đã chọn? File và cache vẫn được giữ.","Bỏ lưu kết nối",MessageBoxButtons.YesNo,MessageBoxIcon.Question)){CheckDialog(confirm,root,"confirmation",width);confirm.AcceptButton.PerformClick();if(confirm.DialogResult!=DialogResult.No)throw new Exception("Confirmation must default to cancel");}
   using(var prompt=new SuitePromptWindow("Cấp quyền · Google Drive","Chọn không gian lưu trữ sau khi đăng nhập trình duyệt.\r\n\r\nNội dung hướng dẫn có thể cuộn nếu tài khoản có nhiều lựa chọn.",new[]{"My Drive","Shared Drive"},"My Drive")){CheckDialog(prompt,root,"authorization",width);if(prompt.Choice.Text!="My Drive"||prompt.Choice.Items.Count!=2)throw new Exception("OAuth choices lost");prompt.Choice.Text="Shared Drive";prompt.AcceptButton.PerformClick();if(prompt.DialogResult!=DialogResult.OK||prompt.Choice.Text!="Shared Drive")throw new Exception("OAuth result lost");}
  }
- Console.WriteLine("Suite native UI: 5 pages per role, all 13 providers, unified borderless notices/confirmations/OAuth, safe cancel defaults and busy-close protection passed.");return 0;
+ using(var picker=new StorageDialog(engine)){picker.StartPosition=FormStartPosition.Manual;picker.Location=new Point(-10000,-10000);picker.Show();Application.DoEvents();picker.PreviewProvider("sftp");var host=All(picker).OfType<TextBox>().Single(t=>t.AccessibleName=="Máy chủ");host.Text="draft.example";foreach(string group in new[]{"NAS","Cloud","Tất cả"}){All(picker).OfType<Button>().Single(b=>b.Text==group).PerformClick();Application.DoEvents();int count=All(picker).OfType<StorageProviderTile>().Count(t=>t.Visible);if(count!=(group=="NAS"?5:group=="Cloud"?8:13)||host.Text!="draft.example")throw new Exception("Provider filter loses draft or services: "+group);}}
+ Console.WriteLine("Suite native UI: dark drive manager, four row actions, share-state guards, Cloud/NAS filters, 5 pages per role, 13 providers and themed dialogs passed.");return 0;
  }catch(Exception e){Console.Error.WriteLine(e);return 1;}}
 }

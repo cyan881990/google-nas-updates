@@ -216,7 +216,7 @@ namespace GoogleNasInstaller {
         private Button install, finish; private CheckBox startup, launch; private ProgressBar progress; private Label state; private bool working, done;
         public SetupForm() {
             SuspendLayout(); AutoScaleDimensions=new SizeF(96,96); AutoScaleMode=AutoScaleMode.Dpi;
-            Text="CYAN NAS · Cài đặt"; Icon=Theme.Icon(); Font=new Font("Segoe UI",10); BackColor=Theme.Background; ClientSize=new Size(760,535); FormBorderStyle=FormBorderStyle.FixedDialog; MaximizeBox=false; StartPosition=FormStartPosition.CenterScreen;
+            Text="CYAN NAS · Cài đặt"; Icon=SetupEngine.SuitePackage?(System.Drawing.Icon.ExtractAssociatedIcon(Application.ExecutablePath)??Theme.Icon()):Theme.Icon(); Font=new Font("Segoe UI",10); BackColor=Theme.Background; ClientSize=new Size(760,535); FormBorderStyle=FormBorderStyle.FixedDialog; MaximizeBox=false; StartPosition=FormStartPosition.CenterScreen;
             var banner=new Panel { Dock=DockStyle.Top,Height=143,BackColor=Theme.Navy }; Controls.Add(banner); Put(banner,SetupEngine.SuitePackage?"CYAN NAS SERVER + CLIENT":"CYAN NAS",24,true,Color.White,30,25); Put(banner,SetupEngine.SuitePackage?"Một bộ cài · Hai ứng dụng Windows độc lập":"Ổ đĩa Google Drive cho Windows",12,false,Color.FromArgb(173,194,221),33,78);
             var body=new Card { Location=new Point(26,163),Size=new Size(708,277) }; Controls.Add(body); Put(body,SetupEngine.SuitePackage?"Cài SERVER và CLIENT cùng lúc.":"Một bộ cài. Sẵn sàng làm việc.",17,true,Theme.Ink,22,19);
             Put(body,"Google Drive: rclone, WinFsp và .NET Framework tích hợp offline.\nNAS từ xa: tool tự tải/cài Tailscale khi bạn bật tính năng.",10,false,Theme.Muted,22,61);

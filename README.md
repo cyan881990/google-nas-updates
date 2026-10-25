@@ -1,4 +1,6 @@
-# CYAN NAS SERVER + CYAN NAS CLIENT — v2.0.2
+# CYAN NAS SERVER + CYAN NAS CLIENT — v2.1.0
+
+v2.1.0 thiết kế lại theo bố cục tiện ích quản lý ổ tham khảo [RaiDrive](https://docs.raidrive.com/gui/getting-started/first-drive/): nền graphite, thanh công cụ Thêm/Làm mới/Cài đặt/Mạng, điều hướng ngang giữ 5 trang riêng cho mỗi tool. Danh sách theo từng ổ có icon nguồn, tên, máy chủ, trạng thái, quota và bốn thao tác kết nối/ngắt, chỉnh sửa, mở thư mục, bỏ lưu. Trạng thái chia sẻ máy chủ lấy từ kết quả kiểm tra thực, không suy đoán bằng ngôn ngữ thông báo. Bộ lọc Cloud/NAS không xóa bản nháp. Khung cửa sổ, biểu mẫu và thông báo dùng cùng tông tối; nút cửa sổ chuyển sang góc phải. Bộ icon vector CYAN NAS riêng: Server dạng cụm ổ, Client đám mây/ổ đĩa, icon 13 nguồn lưu trữ và bộ cài 9 kích thước. Không sử dụng logo hoặc tên RaiDrive làm nhận diện ứng dụng; giữ nguyên cấu hình, cache và cơ chế bảo vệ upload.
 
 v2.0.2 đồng bộ các cửa sổ con bằng một khung không viền dùng chung: màu nền, thanh tiêu đề, icon theo tool, nút đóng đỏ, thẻ trắng bo góc, ô nhập và nhóm nút. Thêm/chỉnh sửa kết nối, cấp quyền OAuth, thông báo lỗi, xác nhận và thông báo cập nhật đều dùng cùng kiểu giao diện. Cửa sổ tự giới hạn theo vùng màn hình, hỗ trợ kéo tiêu đề và phím Esc; xác nhận mặc định Hủy. Cài đặt và Mạng vẫn là trang trong app, không mở cửa sổ Cài đặt cũ. Chặn đóng/lưu cấu hình khi đang kiểm tra hoặc gắn ổ. Không thay đổi kết nối hay tài khoản đang chạy trên máy khi build.
 

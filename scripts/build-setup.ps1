@@ -16,7 +16,9 @@ Copy-Item -LiteralPath (Join-Path $dependencyDir 'WinFsp-LICENSE.txt'),(Join-Pat
 Copy-Item -LiteralPath (Join-Path $dependencyDir 'winfsp.msi'),(Join-Path $dependencyDir 'dotnet48.exe') -Destination $prerequisitesDir
 $compiler = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
 $setupSources = @((Join-Path $projectRoot 'installer\Setup.cs'),(Join-Path $projectRoot 'src\Core.cs'),(Join-Path $projectRoot 'src\Theme.cs'),(Join-Path $projectRoot 'src\IconArtwork.cs'),(Join-Path $buildDir 'Version.cs'))
-$compileOptions = @('/nologo','/target:winexe','/platform:x64','/optimize+',"/win32icon:$(Join-Path $buildDir 'GoogleNas.ico')",'/reference:System.Windows.Forms.dll','/reference:System.Drawing.dll','/reference:System.Web.Extensions.dll','/reference:System.IO.Compression.dll','/reference:System.IO.Compression.FileSystem.dll','/reference:Microsoft.CSharp.dll',"/win32manifest:$(Join-Path $projectRoot 'src\app.manifest')")
+$setupIcon = Join-Path $buildDir 'GoogleNas.ico'
+if ($Suite) { $setupIcon = Join-Path $buildDir 'CyanNasClient.ico' }
+$compileOptions = @('/nologo','/target:winexe','/platform:x64','/optimize+',"/win32icon:$setupIcon",'/reference:System.Windows.Forms.dll','/reference:System.Drawing.dll','/reference:System.Web.Extensions.dll','/reference:System.IO.Compression.dll','/reference:System.IO.Compression.FileSystem.dll','/reference:Microsoft.CSharp.dll',"/win32manifest:$(Join-Path $projectRoot 'src\app.manifest')")
 if ($Suite) { $compileOptions += '/define:CYAN_SUITE' }
 & $compiler $compileOptions "/out:$(Join-Path $appDir 'Uninstall.exe')" $setupSources
 if ($LASTEXITCODE -ne 0) { throw 'Uninstaller build failed.' }
